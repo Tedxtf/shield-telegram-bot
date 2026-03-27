@@ -261,18 +261,25 @@ async function handleMessage(msg) {
       order.data.address = text;
       order.step = 'confirm';
       
-      await sendMessage(chatId, 
-        'Проверьте данные заказа:\n\n' +
+      // 根据是否有产品信息显示不同内容
+      let confirmMsg = 'Проверьте данные заказа:\n\n' +
         `👤 ${order.data.name}\n` +
         `📞 ${order.data.phone}\n` +
         `🏙️ ${order.data.city}\n` +
-        `📍 ${order.data.address}\n\n` +
-        'Товары:\n' +
-        order.products.map(p => `• ${p.name} — ${p.price}₽`).join('\n') +
-        `\n\n💰 Итого: ${order.total}₽\n` +
-        (order.products.length >= 2 ? '🚚 Доставка: бесплатно\n\n' : '\n') +
-        'Всё верно? Напишите "ДА" для подтверждения.'
-      );
+        `📍 ${order.data.address}\n\n`;
+      
+      if (order.products && order.products.length > 0) {
+        confirmMsg += 'Товары:\n' +
+          order.products.map(p => `• ${p.name} — ${p.price}₽`).join('\n') +
+          `\n\n💰 Итого: ${order.total}₽\n` +
+          (order.products.length >= 2 ? '🚚 Доставка: бесплатно\n\n' : '\n');
+      } else if (order.paymentConfirmed) {
+        confirmMsg += `💰 Оплачено: ${order.total}₽\n\n`;
+      }
+      
+      confirmMsg += 'Всё верно? Напишите "ДА" для подтверждения.';
+      
+      await sendMessage(chatId, confirmMsg);
       return;
     }
     
@@ -289,33 +296,43 @@ async function handleMessage(msg) {
           phone: order.data.phone,
           city: order.data.city,
           address: order.data.address,
-          products: order.products,
-          total: order.total
+          products: order.products || [],
+          total: order.total,
+          paymentConfirmed: order.paymentConfirmed || false
         });
         
         // 发送给店主
-        await sendMessage(OWNER_CHAT_ID, 
-          `🛒 НОВЫЙ ЗАКАЗ ${orderNum}\n\n` +
+        let ownerMsg = `🛒 НОВЫЙ ЗАКАЗ ${orderNum}\n\n` +
           `👤 Клиент: @${order.tgName}\n` +
           `📋 ФИО: ${order.data.name}\n` +
           `📞 Телефон: ${order.data.phone}\n` +
           `🏙️ Город: ${order.data.city}\n` +
-          `📍 Адрес: ${order.data.address}\n\n` +
-          'Товары:\n' +
-          order.products.map(p => `• ${p.name} — ${p.price}₽`).join('\n') +
-          `\n\n💰 Итого: ${order.total}₽`
-        );
+          `📍 Адрес: ${order.data.address}\n\n`;
+        
+        if (order.products && order.products.length > 0) {
+          ownerMsg += 'Товары:\n' +
+            order.products.map(p => `• ${p.name} — ${p.price}₽`).join('\n') +
+            `\n\n💰 Итого: ${order.total}₽`;
+        } else {
+          ownerMsg += `💰 Оплачено: ${order.total}₽ (уточнить товары)`;
+        }
+        
+        await sendMessage(OWNER_CHAT_ID, ownerMsg);
         
         // 回复客户
         let reply = `✅ Заказ ${orderNum} оформлен!\n\n`;
-        reply += 'Для оплаты переведите сумму на:\n';
-        reply += '💳 +79213393904 (Чао)\n';
-        reply += '🏦 Банк Санкт-Петербург\n\n';
-        reply += 'После перевода пришлите скриншот сюда.\n';
-        reply += '⏰ Заказ отправим в течение 1-2 дней после подтверждения оплаты.\n\n';
+        
+        if (!order.paymentConfirmed) {
+          reply += 'Для оплаты переведите сумму на:\n';
+          reply += '💳 +79213393904 (Чао)\n';
+          reply += '🏦 Банк Санкт-Петербург\n\n';
+          reply += 'После перевода пришлите скриншот сюда.\n';
+        }
+        
+        reply += '⏰ Заказ отправим в течение 1-2 дней.\n\n';
         
         if (order.hasSpray) {
-          reply += '⚠️ ВАЖНО: Если будете тестировать перцовый баллончик — делайте это ТОЛЬКО на открытом воздухе, подальше от людей и животных. Очень сильное средство!\n\n';
+          reply += '⚠️ ВАЖНО: Если будете тестировать перцовый баллончик — делайте это ТОЛЬКО на открытом воздухе, подальше от людей и животных.\n\n';
         }
         
         reply += 'Спасибо за заказ! Если есть вопросы — @drvapeservice всегда на связи.';
@@ -398,13 +415,111 @@ async function sendDailySummary() {
 // 每小时检查是否需要发送汇总
 setInterval(sendDailySummary, 60 * 60 * 1000);
 
+async function handlePhoto(msg) {
+  const chatId = msg.chat.id;
+  const username = msg.from?.username || msg.from?.first_name || 'unknown';
+  const photo = msg.photo?.[msg.photo.length - 1]; // 获取最大尺寸的图片
+  
+  if (!photo) return;
+  
+  console.log(`📸 ${username} отправил фото`);
+  
+  // 获取图片文件
+  try {
+    const fileRes = await axios.get(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${photo.file_id}`);
+    const filePath = fileRes.data.result.file_path;
+    const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${filePath}`;
+    
+    // 用 DeepSeek Vision 分析图片
+    const visionRes = await axios.post('https://api.deepseek.com/chat/completions', {
+      model: 'deepseek-chat',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Это скриншот банковского перевода? Если да, напиши только сумму цифрами (например: 1200). Если нет суммы или это не платёж, напиши "нет".' },
+            { type: 'image_url', image_url: { url: fileUrl } }
+          ]
+        }
+      ],
+      max_tokens: 50
+    }, {
+      headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }
+    });
+    
+    const analysis = visionRes.data.choices[0].message.content.trim();
+    console.log(`🔍 Анализ фото: ${analysis}`);
+    
+    // 提取金额（只取数字）
+    const amountMatch = analysis.match(/\d+/);
+    
+    if (amountMatch) {
+      // 有金额，进入收货信息收集
+      const amount = amountMatch[0];
+      
+      // 初始化订单状态（如果没有）
+      if (!conversations.has(chatId)) {
+        conversations.set(chatId, { messages: [{ role: 'system', content: SYSTEM_PROMPT }], order: null });
+      }
+      const state = conversations.get(chatId);
+      
+      // 设置订单状态为收集姓名
+      state.order = { 
+        products: [], 
+        total: parseInt(amount), 
+        step: 'name', 
+        data: {}, 
+        hasSpray: false, 
+        tgName: username,
+        paymentConfirmed: true
+      };
+      
+      await sendMessage(chatId, 
+        `✅ Платёж на ${amount}₽ подтверждён!\n\n` +
+        `Давайте оформим доставку. Как вас зовут? (ФИО полностью)`
+      );
+      
+      // 通知店主
+      await sendMessage(OWNER_CHAT_ID, 
+        `💰 Платёж от @${username}\n` +
+        `Сумма: ${amount}₽\n` +
+        `Статус: ожидает данные для доставки`
+      );
+      
+    } else {
+      // 无金额，转人工
+      await sendMessage(chatId, 
+        'Не вижу подтверждения оплаты на скриншоте.\n\n' +
+        'Если возникли проблемы с переводом, напишите @drvapeservice — он поможет разобраться и оформить заказ вручную.'
+      );
+      
+      await sendMessage(OWNER_CHAT_ID, 
+        `⚠️ @${username} отправил фото без подтверждения платежа\n` +
+        `Chat ID: ${chatId}`
+      );
+    }
+    
+  } catch (e) {
+    console.error('Ошибка обработки фото:', e.message);
+    await sendMessage(chatId, 
+      'Не удалось обработать изображение. Пожалуйста, свяжитесь с @drvapeservice для подтверждения оплаты.'
+    );
+  }
+}
+
 module.exports = async (req, res) => {
   if (req.method === 'GET') {
     return res.status(200).json({ status: 'OK', orders: dailyOrders.length });
   }
   if (req.method === 'POST') {
     const { message } = req.body;
-    if (message) await handleMessage(message);
+    if (message) {
+      if (message.photo) {
+        await handlePhoto(message);
+      } else if (message.text) {
+        await handleMessage(message);
+      }
+    }
     return res.status(200).json({ ok: true });
   }
   return res.status(405).json({ error: 'Method not allowed' });

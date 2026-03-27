@@ -87,7 +87,9 @@ async function sendMessage(chatId, text) {
 
 function isCatalogRequest(text) {
   const t = text.toLowerCase();
-  return ['каталог','цены','прайс','сколько стоит','какие есть','что есть','покажи товары','ассортимент','выбор','модели','виды','перцовый','шокер','баллончик'].some(k => t.includes(k));
+  // 排除具体产品型号查询
+  if (/hj-\d|model-\d/.test(t)) return false;
+  return ['каталог','цены','прайс','сколько стоит','какие есть','что есть','покажи товары','ассортимент','выбор','виды'].some(k => t.includes(k));
 }
 
 function isDiscountRequest(text) {

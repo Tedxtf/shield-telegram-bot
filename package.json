@@ -1,0 +1,11 @@
+{
+  "name": "shield-telegram-bot",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node api/bot.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.64.0",
+    "axios": "^1.6.0"
+  }
+}

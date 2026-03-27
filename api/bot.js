@@ -301,7 +301,7 @@ async function handleMessage(msg) {
         }
 
         // 通知店主（长消息或关键词）
-        if (chatId != OWNER_CHAT_ID && (text.length > 20 || isOrderConfirm)) {
+        if (chatId != OWNER_CHAT_ID && isOrderConfirm) {
             await sendMessage(OWNER_CHAT_ID, `🔔 ${username}: ${text.substring(0, 40)}...`);
         }
 

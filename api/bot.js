@@ -140,7 +140,7 @@ async function handleMessage(msg) {
   
   // /start - 专业开场白
   if (text === '/start') {
-    await sendMessage(chatId, 
+    await sendMessage(chatId,
       'Здравствуйте! 👋\n\n' +
       'Меня зовут Антон, я консультант магазина ЩИТ. Помогу подобрать средство самообороны под ваши задачи.\n\n' +
       'Чем могу быть полезен?\n' +
@@ -152,28 +152,77 @@ async function handleMessage(msg) {
     );
     return;
   }
+
+  // /chats - 查看最近聊天的用户（仅店主）
+  if (text === '/chats' && chatId.toString() === OWNER_CHAT_ID) {
+    let chatList = 'Последние диалоги:\n\n';
+    let count = 0;
+    for (const [cid, data] of conversations) {
+      if (cid.toString() === OWNER_CHAT_ID) continue;
+      const userMsgs = data.messages.filter(m => m.role === 'user');
+      if (userMsgs.length > 0) {
+        const lastMsg = userMsgs[userMsgs.length - 1].content.substring(0, 30);
+        chatList += `Chat ID: ${cid} (${userMsgs.length} сообщ.)\nПоследнее: "${lastMsg}..."\n\n`;
+        count++;
+      }
+      if (count >= 10) break;
+    }
+    if (count === 0) chatList = 'Пока нет активных диалогов.';
+    await sendMessage(chatId, chatList);
+    return;
+  }
+
+  // /history - 查看指定用户的聊天记录（仅店主）
+  if (text.startsWith('/history') && chatId.toString() === OWNER_CHAT_ID) {
+    const targetChatId = text.split(' ')[1];
+    if (!targetChatId) {
+      await sendMessage(chatId, 'Использование: /history [Chat ID]\nПример: /history 7762143855');
+      return;
+    }
+    const targetConv = conversations.get(parseInt(targetChatId));
+    if (!targetConv) {
+      await sendMessage(chatId, `Диалог с Chat ID ${targetChatId} не найден.`);
+      return;
+    }
+    let history = `История диалога ${targetChatId}:\n\n`;
+    targetConv.messages.forEach((m, i) => {
+      if (m.role === 'user' || m.role === 'assistant') {
+        const role = m.role === 'user' ? 'Клиент' : 'Бот';
+        history += `${role}: ${m.content.substring(0, 200)}${m.content.length > 200 ? '...' : ''}\n\n`;
+      }
+    });
+    // 如果消息太长，分段发送
+    if (history.length > 4000) {
+      const parts = history.match(/.{1,4000}/g);
+      for (const part of parts) {
+        await sendMessage(chatId, part);
+      }
+    } else {
+      await sendMessage(chatId, history);
+    }
+    return;
+  }
   
   // 复杂问题转人工
   if (isComplexRequest(text)) {
     await sendMessage(chatId, 
-      'Этот вопрос требует личного внимания. Переключаю вас на @drvapeservice — он разберётся и поможет решить.'
+      'Это контакт владельца @drvapeservice — он увидит сообщение и ответит вам в ближайшее время.'
     );
-    await sendMessage(OWNER_CHAT_ID, `🚨 ${username}: сложный запрос\n"${text}"\nChat ID: ${chatId}`);
+    await sendMessage(OWNER_CHAT_ID, `${username}: сложный запрос "${text}" Chat ID: ${chatId}`);
     return;
   }
   
   // 转人工
   if (text.toLowerCase().includes('консультант') || text.toLowerCase().includes('человек') || text.toLowerCase().includes('оператор')) {
-    await sendMessage(chatId, 'Понял вас. Вот контакт моего коллеги @drvapeservice — он на связи и поможет со всеми вопросами.');
-    await sendMessage(OWNER_CHAT_ID, `👤 ${username} запросил оператора\nChat ID: ${chatId}`);
+    await sendMessage(chatId, 'Это контакт владельца @drvapeservice — он увидит сообщение и ответит вам в ближайшее время.');
+    await sendMessage(OWNER_CHAT_ID, `${username} запросил оператора Chat ID: ${chatId}`);
     return;
   }
   
   // 折扣
   if (isDiscountRequest(text)) {
     await sendMessage(chatId, 
-      'Цены у нас фиксированные, полномочий менять их у меня нет.\n\n' +
-      'По вопросам оптовых закупок или специальных условий напишите @drvapeservice — он расскажет про наши оптовые прайсы.'
+      'Цены фиксированные. По вопросам опта пишите @drvapeservice — он увидит и ответит в ближайшее время.'
     );
     return;
   }
@@ -226,9 +275,7 @@ async function handleMessage(msg) {
         );
         
         await sendMessage(OWNER_CHAT_ID, 
-          `💰 Платёж от @${username}\n` +
-          `Сумма: ${amount}₽\n` +
-          `Статус: ожидает данные для доставки`
+          `Платёж от @${username} Сумма: ${amount}₽ Статус: ожидает данные для доставки`
         );
       } else {
         await sendMessage(chatId, 'Пожалуйста, введите сумму цифрами (например: 2139)');
@@ -325,19 +372,12 @@ async function handleMessage(msg) {
         });
         
         // 发送给店主
-        let ownerMsg = `🛒 НОВЫЙ ЗАКАЗ ${orderNum}\n\n` +
-          `👤 Клиент: @${order.tgName}\n` +
-          `📋 ФИО: ${order.data.name}\n` +
-          `📞 Телефон: ${order.data.phone}\n` +
-          `🏙️ Город: ${order.data.city}\n` +
-          `📍 Адрес: ${order.data.address}\n\n`;
+        let ownerMsg = `НОВЫЙ ЗАКАЗ ${orderNum} Клиент: @${order.tgName} ФИО: ${order.data.name} Телефон: ${order.data.phone} Город: ${order.data.city} Адрес: ${order.data.address}`;
         
         if (order.products && order.products.length > 0) {
-          ownerMsg += 'Товары:\n' +
-            order.products.map(p => `• ${p.name} — ${p.price}₽`).join('\n') +
-            `\n\n💰 Итого: ${order.total}₽`;
+          ownerMsg += ` Товары: ${order.products.map(p => `${p.name} ${p.price}₽`).join(', ')} Итого: ${order.total}₽`;
         } else {
-          ownerMsg += `💰 Оплачено: ${order.total}₽ (уточнить товары)`;
+          ownerMsg += ` Оплачено: ${order.total}₽ (уточнить товары)`;
         }
         
         await sendMessage(OWNER_CHAT_ID, ownerMsg);
@@ -388,12 +428,10 @@ async function handleMessage(msg) {
     state.messages.push({ role: 'assistant', content: reply });
     await sendMessage(chatId, reply);
     
-    if (chatId != OWNER_CHAT_ID && text.length > 15) {
-      await sendMessage(OWNER_CHAT_ID, `🔔 ${username}: ${text.substring(0, 40)}...`);
-    }
+    // 不再实时通知普通消息，只通过 /history 查看
   } catch (e) {
     console.error('AI error:', e.message);
-    await sendMessage(chatId, 'Технические неполадки. Напишите @drvapeservice — он поможет.');
+    await sendMessage(chatId, 'Технические неполадки. Напишите @drvapeservice — он увидит и ответит в ближайшее время.');
   }
 }
 
@@ -413,23 +451,14 @@ async function sendDailySummary() {
   const yesterdayOrders = dailyOrders.filter(o => o.date >= yesterday9am && o.date < today9am);
   
   if (yesterdayOrders.length === 0) {
-    await sendMessage(OWNER_CHAT_ID, '📊 За вчера (9:00-9:00) заказов не было.');
+    await sendMessage(OWNER_CHAT_ID, 'За вчера (9:00-9:00) заказов не было.');
     return;
   }
   
-  let summary = `📊 ЗАКАЗЫ ЗА ВЧЕРА (${yesterday9am.toLocaleDateString('ru-RU')} 9:00 — ${today9am.toLocaleDateString('ru-RU')} 9:00)\n\n`;
-  summary += `Всего заказов: ${yesterdayOrders.length}\n\n`;
+  let summary = `ЗАКАЗЫ ЗА ВЧЕРА (${yesterday9am.toLocaleDateString('ru-RU')} 9:00 — ${today9am.toLocaleDateString('ru-RU')} 9:00) Всего заказов: ${yesterdayOrders.length} `;
   
   yesterdayOrders.forEach((o, i) => {
-    summary += `— ЗАКАЗ ${i + 1} —\n`;
-    summary += `Номер: ${o.orderNum}\n`;
-    summary += `TG: @${o.tgName}\n`;
-    summary += `ФИО: ${o.name}\n`;
-    summary += `Тел: ${o.phone}\n`;
-    summary += `Город: ${o.city}\n`;
-    summary += `Адрес: ${o.address}\n`;
-    summary += `Товары: ${o.products.map(p => p.name).join(', ')}\n`;
-    summary += `Сумма: ${o.total}₽\n\n`;
+    summary += `ЗАКАЗ ${i + 1}: ${o.orderNum} Клиент: @${o.tgName} ФИО: ${o.name} Тел: ${o.phone} Город: ${o.city} Адрес: ${o.address} Товары: ${o.products.map(p => p.name).join(', ')} Сумма: ${o.total}₽ `;
   });
   
   await sendMessage(OWNER_CHAT_ID, summary);
@@ -477,15 +506,13 @@ async function handlePhoto(msg) {
     
     // 通知店主
     await sendMessage(OWNER_CHAT_ID, 
-      `📸 @${username} отправил скриншот оплаты\n` +
-      `Ссылка: ${fileUrl}\n` +
-      `Ожидает подтверждения суммы...`
+      `@${username} отправил скриншот оплаты Ссылка: ${fileUrl} Ожидает подтверждения суммы`
     );
     
   } catch (e) {
     console.error('Ошибка обработки фото:', e.message);
     await sendMessage(chatId, 
-      'Получил фото, но не удалось сохранить. Напишите сумму перевода цифрами для подтверждения.'
+      'Получил фото. Напишите сумму перевода цифрами, или свяжитесь с @drvapeservice — он увидит и ответит в ближайшее время.'
     );
   }
 }

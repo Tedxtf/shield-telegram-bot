@@ -3,6 +3,7 @@ const axios = require('axios');
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const OWNER_CHAT_ID = process.env.OWNER_CHAT_ID;
+const SHIPPING_FEE = 350;
 
 const PRODUCTS = {
   'HJ-5': { name: 'HJ-5 (5ml)', price: 569, desc: 'Форм-фактор помады, сверхкомпактный, для ближней дистанции', bestFor: 'скрытое ношение, неожиданное применение, женская сумочка', size: '82×Ø18 мм', weight: '20 г', range: 'только ближняя дистанция', type: 'spray' },
@@ -41,12 +42,11 @@ const SYSTEM_PROMPT = `Ты — консультант магазина ЩИТ. 
 Баллончики: HJ-5 569₽, HJ-10 579₽, HJ-15 589₽, HJ-15W 599₽, HJ-20 649₽, HJ-20K 699₽, HJ-60 829₽, HJ-110 899₽, HJ-110S 999₽
 Шокеры: Model-800 1490₽, Model-806/1202/398 1590₽, Model-669/309 1690₽, Model-1108 1999₽, Model-1158/1320 2099₽, Model-1138 2499₽
 
-ДОСТАВКА: 300-400₽, бесплатно от 2 шт.
+ДОСТАВКА: 350₽, бесплатно от 2 шт.
 ОПЛАТА: перевод на +79213393904 (Чао), только так.
 
 ЗАПРЕЩЕНО:
 - Длинные объяснения
-- Технические характеристики, если не спросили
 - Повторять вопрос клиента
 - Писать больше 4 предложений
 
@@ -70,7 +70,7 @@ function getCatalog() {
   for (const [, v] of Object.entries(PRODUCTS)) {
     if (v.type === 'stun') cat += `• ${v.name} — ${v.price}₽\n`;
   }
-  cat += '\n🚚 Доставка 300-400₽\n';
+  cat += `\n🚚 Доставка ${SHIPPING_FEE}₽\n`;
   cat += '🎁 <b>БЕСПЛАТНАЯ ДОСТАВКА при заказе от 2 шт!</b>\n';
   cat += '💡 Совет: возьмите баллончик + шокер — выгодно и универсально';
   return cat;
@@ -90,6 +90,22 @@ function calculateTotal(products) {
   return products.reduce((sum, p) => sum + p.price, 0);
 }
 
+function getDeliveryFee(productCount = 0) {
+  return productCount >= 2 ? 0 : SHIPPING_FEE;
+}
+
+function getOrderGrandTotal(order) {
+  return calculateTotal(order.products || []) + getDeliveryFee((order.products || []).length);
+}
+
+function buildDeliveryReply(productCount = 0) {
+  const fee = getDeliveryFee(productCount);
+  if (fee === 0) {
+    return 'Доставка у вас будет бесплатной, потому что в заказе уже 2 товара или больше.';
+  }
+  return `Доставка фиксированная — ${SHIPPING_FEE}₽. Если в заказе только 1 товар, к цене товара добавляется ${SHIPPING_FEE}₽.`;
+}
+
 function buildTypeCatalog(type) {
   const items = getProductsByType(type);
   const title = type === 'spray' ? '🌶️ ПЕРЦОВЫЕ БАЛЛОНЧИКИ:' : '⚡ ЭЛЕКТРОШОКЕРЫ:';
@@ -97,51 +113,56 @@ function buildTypeCatalog(type) {
   items.forEach(item => {
     msg += `• ${item.name} — ${item.price}₽\n`;
   });
-  msg += '\n🚚 Доставка 300-400₽';
+  msg += `\n🚚 Доставка ${SHIPPING_FEE}₽`;
   msg += '\n🎁 От 2 шт доставка бесплатно';
   return msg;
 }
 
 function buildSelectionHelp(type) {
   if (type === 'spray') {
-    return 'Могу сразу подсказать по баллончикам: самый компактный HJ-5 — 569₽, популярный скрытый вариант HJ-10 — 579₽, более уверенный HJ-20 — 649₽. Напишите модель, например HJ-10, и я добавлю её в заказ.';
+    return 'По баллончикам могу быстро подсказать: самый компактный HJ-5, популярный скрытый вариант HJ-10, более уверенный HJ-20. Напишите модель, например HJ-10, и я сразу посчитаю итог.';
   }
   if (type === 'stun') {
-    return 'По шокерам чаще берут Model-800 за 1490₽ или Model-806 за 1590₽. Напишите модель, например Model-800, и я сразу добавлю её в заказ.';
+    return 'По шокерам чаще берут Model-800 или Model-806. Напишите модель, например Model-800, и я сразу посчитаю итог.';
   }
-  return 'Напишите модель товара, и я сразу добавлю её в заказ.';
+  return 'Напишите модель товара, и я сразу подскажу по нему.';
 }
 
 function buildPriceReply(type, productsInMessage = []) {
   if (productsInMessage.length === 1) {
     const p = productsInMessage[0];
-    return `${p.name} стоит ${p.price}₽. Доставка обычно 300-400₽, а от 2 штук бесплатно. Если хотите, сразу добавлю в заказ.`;
+    const grandTotal = p.price + SHIPPING_FEE;
+    return `${p.name} стоит ${p.price}₽. Если брать только один товар, доставка будет ${SHIPPING_FEE}₽, итого ${grandTotal}₽. Если взять 2 товара и больше, доставка бесплатная.`;
   }
 
   if (productsInMessage.length > 1) {
     const total = calculateTotal(productsInMessage);
-    const items = productsInMessage.map(p => `${p.name} — ${p.price}₽`).join(', ');
-    return `По этим моделям сейчас так: ${items}. Вместе выходит ${total}₽, а от 2 штук доставка бесплатно. Если хотите, сразу оформлю заказ.`;
+    return `По этим моделям вместе выходит ${total}₽. Так как товаров уже от 2 штук, доставка будет бесплатной.`;
   }
 
   if (type === 'spray') {
-    return 'По баллончикам цены от 569₽ до 999₽. Самые популярные варианты — HJ-10 за 579₽ и HJ-20 за 649₽. Если хотите, сразу добавлю нужную модель.';
+    return `По баллончикам цены от 569₽ до 999₽. Если брать один товар, доставка фиксированная — ${SHIPPING_FEE}₽, а от 2 товаров бесплатно.`;
   }
 
   if (type === 'stun') {
-    return 'По шокерам цены от 1490₽ до 2499₽. Чаще всего берут Model-800 за 1490₽ или Model-806 за 1590₽. Если хотите, сразу добавлю нужную модель.';
+    return `По шокерам цены от 1490₽ до 2499₽. Если брать один товар, доставка фиксированная — ${SHIPPING_FEE}₽, а от 2 товаров бесплатно.`;
   }
 
-  return 'Цены зависят от модели. Напишите модель или скажите, что нужен баллончик либо шокер, и я сразу сориентирую.';
+  return `Доставка фиксированная — ${SHIPPING_FEE}₽ за заказ с одним товаром, а от 2 товаров бесплатно. Напишите модель, и я сразу посчитаю точную сумму.`;
 }
 
 function isInfoRequest(text) {
   const t = normalizeText(text);
   return [
-    'размер', 'габарит', 'вес', 'удобно', 'носить', 'с собой',
-    'карман', 'сумк', 'дальность', 'дальн', 'мощн',
-    'отлич', 'для чего', 'что лучше', 'компакт', 'удобен'
+    'размер', 'габарит', 'вес', 'удобно', 'носить', 'с собой', 'карман', 'сумк',
+    'дальность', 'дальн', 'мощн', 'отлич', 'для чего', 'что лучше', 'компакт',
+    'удобен', 'удобно ли', 'как насчет', 'как насчёт', 'что скажете', 'расскажите',
+    'подойдет', 'подойдёт', 'советуете', 'посоветуйте', 'что за'
   ].some(k => t.includes(k));
+}
+
+function isDeliveryRequest(text) {
+  return normalizeText(text).includes('доставка');
 }
 
 function buildProductInfoReply(product, text) {
@@ -160,28 +181,23 @@ function buildProductInfoReply(product, text) {
     if (product.range) parts.push(`По работе: ${product.range}.`);
   }
 
-  if (
-    t.includes('носить') ||
-    t.includes('с собой') ||
-    t.includes('карман') ||
-    t.includes('сумк') ||
-    t.includes('удобно')
-  ) {
+  if (t.includes('носить') || t.includes('с собой') || t.includes('карман') || t.includes('сумк') || t.includes('удобно')) {
     const bulky = /150×Ø35|115×Ø35|243|376|182|176/.test(product.size || '');
     if (bulky) {
       parts.push('Носить с собой можно, но это уже не самый компактный формат — удобнее сумка, бардачок или большая куртка.');
     } else {
-      parts.push('Да, для повседневного ношения формат достаточно удобный, особенно в сумке или кармане одежды.');
+      parts.push('Для повседневного ношения формат довольно удобный, особенно в сумке или кармане одежды.');
     }
   }
 
   if (parts.length === 0) {
-    parts.push(product.desc ? `${product.desc}.` : 'Это удачная модель для повседневного использования.');
+    if (product.desc) parts.push(product.desc + '.');
+    if (product.bestFor) parts.push(`Главный плюс — ${product.bestFor}.`);
     if (product.size) parts.push(`Размер ${product.size}.`);
     if (product.weight && product.weight !== '—') parts.push(`Вес ${product.weight}.`);
   }
 
-  return `${product.name}: ${parts.join(' ')} Если хотите, могу сразу добавить в заказ.`;
+  return `${product.name}: ${parts.join(' ')} Если хотите, могу сразу посчитать итог с доставкой или помочь оформить заказ.`;
 }
 
 function detectPreferredType(text) {
@@ -223,20 +239,12 @@ function wantsHuman(text) {
 
 function hasPurchaseSignal(text) {
   const t = normalizeText(text);
-  return [
-    'заказать', 'оформить заказ', 'хочу заказать',
-    'купить', 'куплю', 'купим',
-    'приобрести', 'беру',
-    'возьму', 'возьмем', 'возьмём',
-    'оформляем', 'забираю', 'оформи',
-    'добавь', 'добавьте',
-    'нужен', 'нужна', 'нужно', 'хочу'
-  ].some(k => t.includes(k));
+  return ['заказать', 'оформить заказ', 'хочу заказать', 'купить', 'куплю', 'купим', 'приобрести', 'беру', 'возьму', 'возьмем', 'возьмём', 'оформляем', 'забираю', 'оформи', 'добавь', 'добавьте', 'нужен', 'нужна', 'нужно', 'хочу'].some(k => t.includes(k));
 }
 
 function wantsModifyOrder(text) {
   const t = normalizeText(text);
-  return ['измени', 'изменить', 'поменяй', 'поменять', 'замени', 'заменить', 'добавь', 'добавьте', 'еще', 'ещё', 'убери', 'убрать', 'товар'].some(k => t.includes(k));
+  return ['измени', 'изменить', 'поменяй', 'поменять', 'замени', 'заменить', 'добавь', 'добавьте', 'еще', 'ещё', 'убери', 'убрать', 'товар', 'передумал', 'теперь хочу', 'только один'].some(k => t.includes(k));
 }
 
 function isYes(text) {
@@ -283,7 +291,8 @@ function createEmptyOrder(username, preferredType = null) {
     hasSpray: preferredType === 'spray',
     preferredType,
     tgName: username,
-    paymentConfirmed: false
+    paymentConfirmed: false,
+    intentConfirmed: false
   };
 }
 
@@ -321,16 +330,16 @@ async function sendMessage(chatId, text) {
 }
 
 function getNextOrderPrompt(order) {
+  if (!order.intentConfirmed) {
+    return {
+      step: 'order_offer',
+      prompt: 'Если хотите, помогу оформить заказ. Напишите «ДА», и я попрошу данные для доставки. Если хотите изменить товары, просто напишите, что добавить или заменить.'
+    };
+  }
   if (!order.data.name) {
     return {
       step: 'name',
-      prompt: 'Давайте оформим заказ. Как вас зовут? (ФИО полностью)'
-    };
-  }
-  if (!order.data.phone) {
-    return {
-      step: 'phone',
-      prompt: 'Ваш телефон? Нужен для связи курьера.\nПример: +7 999 123-45-67'
+      prompt: 'Как зовут получателя? (ФИО полностью)'
     };
   }
   if (!order.data.city) {
@@ -350,9 +359,15 @@ function getNextOrderPrompt(order) {
         'Пример: ул. Ленина, дом 10, квартира 5'
     };
   }
+  if (!order.data.phone) {
+    return {
+      step: 'phone',
+      prompt: 'Контактный телефон получателя:\nПример: +7 999 123-45-67'
+    };
+  }
   return {
     step: 'confirm',
-    prompt: 'Если всё верно, напишите "ДА" для подтверждения. Если нужно что-то поменять, просто напишите, что именно.'
+    prompt: 'Если всё верно, напишите «ДА» для подтверждения. Если нужно что-то поменять, просто напишите, что именно.'
   };
 }
 
@@ -365,12 +380,17 @@ async function startOrderFromProducts(chatId, state, username, products, mode = 
   const next = getNextOrderPrompt(state.order);
   state.order.step = next.step;
 
-  let msg = `Отлично! Ваш выбор:\n${formatProducts(state.order.products)}\n\nИтого: ${state.order.total}₽`;
+  const deliveryFee = getDeliveryFee(state.order.products.length);
+  const grandTotal = getOrderGrandTotal(state.order);
 
-  if (state.order.products.length === 1) {
-    msg += '\n\n💡 Кстати, если добавите ещё один товар, доставка будет бесплатной — сэкономите 300-400₽!';
+  let msg = `Отлично! Ваш выбор:\n${formatProducts(state.order.products)}\n\nТовары: ${state.order.total}₽\n`;
+  msg += deliveryFee === 0 ? 'Доставка: бесплатно\n' : `Доставка: ${deliveryFee}₽\n`;
+  msg += `Итого: ${grandTotal}₽`;
+
+  if (deliveryFee > 0) {
+    msg += `\n\n💡 Если добавите ещё один товар, доставка станет бесплатной — сэкономите ${SHIPPING_FEE}₽!`;
   } else {
-    msg += '\n\n✅ У вас от 2 шт — доставка бесплатно!';
+    msg += '\n\n✅ У вас от 2 шт — доставка бесплатная!';
   }
 
   msg += `\n\n${next.prompt}`;
@@ -383,6 +403,7 @@ async function handleContextualOrderMessage(chatId, state, username, text) {
   const preferredTypeFromText = detectPreferredType(text) || order.preferredType;
   const asksPrice = isPriceRequest(text);
   const asksCatalog = isCatalogRequest(text);
+  const asksDelivery = isDeliveryRequest(text);
   const infoRequest = isInfoRequest(text);
   const purchaseSignal = hasPurchaseSignal(text);
   const wantsModify = wantsModifyOrder(text);
@@ -390,43 +411,30 @@ async function handleContextualOrderMessage(chatId, state, username, text) {
 
   if (!order) return false;
 
+  if (order.step !== 'payment_amount' && asksDelivery) {
+    await sendMessage(chatId, buildDeliveryReply((order.products || []).length));
+    return true;
+  }
+
   if (order.step !== 'payment_amount' && infoRequest && products.length === 1) {
     await sendMessage(chatId, buildProductInfoReply(products[0], text));
     return true;
   }
 
   if (order.step !== 'payment_amount' && products.length > 0 && (purchaseSignal || wantsModify)) {
-    const addMode =
-      order.products.length > 0 &&
-      (normalizeText(text).includes('еще') || normalizeText(text).includes('ещё'));
-
+    const addMode = order.products.length > 0 && (normalizeText(text).includes('еще') || normalizeText(text).includes('ещё'));
     await startOrderFromProducts(chatId, state, username, products, addMode ? 'add' : 'replace');
+    return true;
+  }
+
+  if (order.step !== 'payment_amount' && !products.length && preferredTypeFromText && (purchaseSignal || wantsModify)) {
+    order.preferredType = preferredTypeFromText;
+    await sendMessage(chatId, buildSelectionHelp(preferredTypeFromText));
     return true;
   }
 
   if (order.step !== 'payment_amount' && justPriceForProduct) {
     await sendMessage(chatId, buildPriceReply(preferredTypeFromText, products));
-    return true;
-  }
-
-  if (
-    order.step !== 'payment_amount' &&
-    order.step === 'product_selection' &&
-    preferredTypeFromText &&
-    (asksPrice || asksCatalog || purchaseSignal || wantsModify)
-  ) {
-    if (asksPrice) {
-      await sendMessage(chatId, buildPriceReply(preferredTypeFromText));
-      return true;
-    }
-
-    if (asksCatalog) {
-      await sendMessage(chatId, preferredTypeFromText ? buildTypeCatalog(preferredTypeFromText) : getCatalog());
-      return true;
-    }
-
-    order.preferredType = preferredTypeFromText;
-    await sendMessage(chatId, buildSelectionHelp(preferredTypeFromText));
     return true;
   }
 
@@ -437,12 +445,6 @@ async function handleContextualOrderMessage(chatId, state, username, text) {
 
   if (order.step !== 'payment_amount' && asksCatalog) {
     await sendMessage(chatId, preferredTypeFromText ? buildTypeCatalog(preferredTypeFromText) : getCatalog());
-    return true;
-  }
-
-  if (order.step !== 'payment_amount' && wantsModify && preferredTypeFromText && order.products.length === 0) {
-    order.preferredType = preferredTypeFromText;
-    await sendMessage(chatId, buildSelectionHelp(preferredTypeFromText));
     return true;
   }
 
@@ -462,11 +464,6 @@ async function handleMessage(msg) {
   }
   const state = conversations.get(chatId);
 
-  if (state.order && (!state.order.products || state.order.products.length === 0) && !state.order.paymentConfirmed && state.order.step !== 'product_selection') {
-    console.log(`⚠️ Сброс неполного заказа для ${chatId}`);
-    state.order = null;
-  }
-
   if (text === '/start') {
     conversations.set(chatId, { messages: [{ role: 'system', content: SYSTEM_PROMPT }], order: null });
     await sendMessage(chatId,
@@ -475,8 +472,8 @@ async function handleMessage(msg) {
       'Чем могу быть полезен?\n' +
       '• 📋 Покажу актуальные цены и наличие\n' +
       '• 🎯 Подберу под конкретную ситуацию\n' +
-      '• 📝 Оформлю заказ быстро и просто\n\n' +
-      '💡 Кстати, при заказе от 2 шт доставка бесплатно — экономия 300-400₽\n\n' +
+      '• 📝 Помогу оформить заказ\n\n' +
+      `💡 Доставка фиксированная ${SHIPPING_FEE}₽, а от 2 товаров бесплатно\n\n` +
       'Если удобнее поговорить голосом или есть сложные вопросы — пишите моему коллеге @drvapeservice'
     );
     return;
@@ -567,6 +564,7 @@ async function handleMessage(msg) {
   const preferredTypeFromText = detectPreferredType(text);
   const purchaseSignal = hasPurchaseSignal(text);
   const asksPrice = isPriceRequest(text);
+  const asksDelivery = isDeliveryRequest(text);
   const infoRequest = isInfoRequest(text);
 
   if (state.order) {
@@ -574,29 +572,39 @@ async function handleMessage(msg) {
     if (handledByContext) return;
   }
 
+  if (!state.order && asksDelivery) {
+    await sendMessage(chatId, buildDeliveryReply(productsInMessage.length));
+    return;
+  }
+
   if (!state.order && infoRequest && productsInMessage.length === 1) {
-  await sendMessage(chatId, buildProductInfoReply(productsInMessage[0], text));
-  return;
+    await sendMessage(chatId, buildProductInfoReply(productsInMessage[0], text));
+    return;
   }
 
   if (!state.order && asksPrice && (productsInMessage.length > 0 || preferredTypeFromText)) {
-  await sendMessage(chatId, buildPriceReply(preferredTypeFromText, productsInMessage));
-  return;
+    await sendMessage(chatId, buildPriceReply(preferredTypeFromText, productsInMessage));
+    return;
   }
 
   if (!state.order && purchaseSignal && productsInMessage.length > 0) {
-  await startOrderFromProducts(chatId, state, username, productsInMessage, 'replace');
-  return;
+    await startOrderFromProducts(chatId, state, username, productsInMessage, 'replace');
+    return;
+  }
+
+  if (!state.order && purchaseSignal && preferredTypeFromText) {
+    state.order = createEmptyOrder(username, preferredTypeFromText);
+    state.order.step = 'product_selection';
+    await sendMessage(chatId, buildSelectionHelp(preferredTypeFromText));
+    return;
   }
 
   if (!state.order && productsInMessage.length > 0 && !purchaseSignal) {
-  await sendMessage(chatId, buildPriceReply(preferredTypeFromText, productsInMessage));
-  return;
-  }
-  
-  if (!state.order && purchaseSignal && preferredTypeFromText) {
-    state.order = createEmptyOrder(username, preferredTypeFromText);
-    await sendMessage(chatId, buildSelectionHelp(preferredTypeFromText));
+    if (infoRequest) {
+      await sendMessage(chatId, buildProductInfoReply(productsInMessage[0], text));
+    } else {
+      await sendMessage(chatId, buildPriceReply(preferredTypeFromText, productsInMessage));
+    }
     return;
   }
 
@@ -612,28 +620,38 @@ async function handleMessage(msg) {
   if (state.order) {
     const order = state.order;
 
+    if (order.step === 'order_offer') {
+      if (isYes(text) || normalizeText(text).includes('оформ')) {
+        order.intentConfirmed = true;
+        const next = getNextOrderPrompt(order);
+        order.step = next.step;
+        await sendMessage(chatId, next.prompt);
+        return;
+      }
+      if (normalizeText(text).includes('нет') || normalizeText(text).includes('не надо')) {
+        await sendMessage(chatId, 'Хорошо. Если захотите оформить заказ, просто напишите «оформить заказ».');
+        return;
+      }
+    }
+
     if (order.step === 'payment_amount') {
       const amount = parseInt(text.replace(/\D/g, ''), 10);
       if (amount > 0) {
         order.total = amount;
         order.step = 'name';
         order.paymentConfirmed = true;
-        await sendMessage(chatId,
-          `✅ Оплата ${amount}₽ подтверждена!\n\n` +
-          'Давайте оформим доставку. Как вас зовут? (ФИО полностью)'
-        );
-
-        await sendMessage(OWNER_CHAT_ID,
-          `Платёж от @${username} Сумма: ${amount}₽ Статус: ожидает данные для доставки`
-        );
+        await sendMessage(chatId, `✅ Оплата ${amount}₽ подтверждена!\n\nКак зовут получателя? (ФИО полностью)`);
+        await sendMessage(OWNER_CHAT_ID, `Платёж от @${username} Сумма: ${amount}₽ Статус: ожидает данные для доставки`);
       } else {
-        await sendMessage(chatId, 'Пожалуйста, введите сумму цифрами (например: 2139)');
+        await sendMessage(chatId, 'Пожалуйста, введите сумму цифрами, например: 2139');
       }
       return;
     }
 
     if (order.step === 'product_selection') {
-      if (asksPrice) {
+      if (asksDelivery) {
+        await sendMessage(chatId, buildDeliveryReply((order.products || []).length));
+      } else if (asksPrice) {
         await sendMessage(chatId, buildPriceReply(order.preferredType, productsInMessage));
       } else {
         await sendMessage(chatId, buildSelectionHelp(order.preferredType));
@@ -643,17 +661,6 @@ async function handleMessage(msg) {
 
     if (order.step === 'name') {
       order.data.name = text;
-      order.step = 'phone';
-      await sendMessage(chatId, 'Ваш телефон? Нужен для связи курьера.\nПример: +7 999 123-45-67');
-      return;
-    }
-
-    if (order.step === 'phone') {
-      if (!/\+?7[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}/.test(text)) {
-        await sendMessage(chatId, 'Проверьте формат. Введите номер как в примере: +7 999 123-45-67');
-        return;
-      }
-      order.data.phone = text;
       order.step = 'city';
       await sendMessage(chatId, 'В каком городе нужна доставка? (Москва, СПб и т.д.)');
       return;
@@ -687,24 +694,39 @@ async function handleMessage(msg) {
         return;
       }
       order.data.address = text;
+      order.step = 'phone';
+      await sendMessage(chatId, 'Контактный телефон получателя:\nПример: +7 999 123-45-67');
+      return;
+    }
+
+    if (order.step === 'phone') {
+      if (!/\+?7[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}/.test(text)) {
+        await sendMessage(chatId, 'Проверьте формат. Введите номер как в примере: +7 999 123-45-67');
+        return;
+      }
+      order.data.phone = text;
       order.step = 'confirm';
+
+      const deliveryFee = getDeliveryFee((order.products || []).length);
+      const grandTotal = getOrderGrandTotal(order);
 
       let confirmMsg = 'Проверьте данные заказа:\n\n' +
         `👤 ${order.data.name}\n` +
-        `📞 ${order.data.phone}\n` +
         `🏙️ ${order.data.city}\n` +
-        `📍 ${order.data.address}\n\n`;
+        `📍 ${order.data.address}\n` +
+        `📞 ${order.data.phone}\n\n`;
 
       if (order.products && order.products.length > 0) {
         confirmMsg += 'Товары:\n' +
           formatProducts(order.products) +
-          `\n\n💰 Итого: ${order.total}₽\n` +
-          (order.products.length >= 2 ? '🚚 Доставка: бесплатно\n\n' : '\n');
+          `\n\nТовары: ${order.total}₽\n` +
+          (deliveryFee === 0 ? 'Доставка: бесплатно\n' : `Доставка: ${deliveryFee}₽\n`) +
+          `Итого к оплате: ${grandTotal}₽\n\n`;
       } else if (order.paymentConfirmed) {
         confirmMsg += `💰 Оплачено: ${order.total}₽\n\n`;
       }
 
-      confirmMsg += 'Всё верно? Напишите "ДА" для подтверждения.';
+      confirmMsg += 'Если всё верно, напишите «ДА». Если нужно что-то поменять, просто напишите, что именно.';
       await sendMessage(chatId, confirmMsg);
       return;
     }
@@ -712,6 +734,8 @@ async function handleMessage(msg) {
     if (order.step === 'confirm') {
       if (isYes(text)) {
         const orderNum = `AP${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${dailyOrders.length + 1}`;
+        const deliveryFee = getDeliveryFee((order.products || []).length);
+        const grandTotal = getOrderGrandTotal(order);
 
         dailyOrders.push({
           orderNum,
@@ -723,13 +747,14 @@ async function handleMessage(msg) {
           address: order.data.address,
           products: order.products || [],
           total: order.total,
+          grandTotal,
           paymentConfirmed: order.paymentConfirmed || false
         });
 
         let ownerMsg = `НОВЫЙ ЗАКАЗ ${orderNum} Клиент: @${order.tgName} ФИО: ${order.data.name} Телефон: ${order.data.phone} Город: ${order.data.city} Адрес: ${order.data.address}`;
 
         if (order.products && order.products.length > 0) {
-          ownerMsg += ` Товары: ${order.products.map(p => `${p.name} ${p.price}₽`).join(', ')} Итого: ${order.total}₽`;
+          ownerMsg += ` Товары: ${order.products.map(p => `${p.name} ${p.price}₽`).join(', ')} Товары: ${order.total}₽ Доставка: ${deliveryFee === 0 ? 'бесплатно' : deliveryFee + '₽'} Итого: ${grandTotal}₽`;
         } else {
           ownerMsg += ` Оплачено: ${order.total}₽ (уточнить товары)`;
         }
@@ -739,6 +764,7 @@ async function handleMessage(msg) {
         let reply = `✅ Заказ ${orderNum} оформлен!\n\n`;
 
         if (!order.paymentConfirmed) {
+          reply += `К оплате: ${grandTotal}₽\n\n`;
           reply += 'Для оплаты переведите сумму на:\n';
           reply += '💳 +79213393904 (Чао)\n';
           reply += '🏦 Банк Санкт-Петербург\n\n';
@@ -748,17 +774,16 @@ async function handleMessage(msg) {
         reply += '⏰ Заказ отправим в течение 1-2 дней.\n\n';
 
         if (order.hasSpray) {
-          reply += '⚠️ ВАЖНО: Если будете тестировать перцовый баллончик — делайте это ТОЛЬКО на открытом воздухе, подальше от людей и животных.\n\n';
+          reply += '⚠️ ВАЖНО: Если будете тестировать перцовый баллончик — делайте это только на открытом воздухе, подальше от людей и животных.\n\n';
         }
 
         reply += 'Спасибо за заказ! Если есть вопросы — @drvapeservice всегда на связи.';
-
         await sendMessage(chatId, reply);
         state.order = null;
         return;
       }
 
-      await sendMessage(chatId, 'Что нужно изменить? Напишите: имя / телефон / город / адрес / товары');
+      await sendMessage(chatId, 'Что нужно изменить? Напишите, например: заменить товар, изменить адрес или изменить телефон.');
       return;
     }
   }
@@ -810,7 +835,7 @@ async function sendDailySummary() {
   let summary = `ЗАКАЗЫ ЗА ВЧЕРА (${yesterday9am.toLocaleDateString('ru-RU')} 9:00 — ${today9am.toLocaleDateString('ru-RU')} 9:00) Всего заказов: ${yesterdayOrders.length} `;
 
   yesterdayOrders.forEach((o, i) => {
-    summary += `ЗАКАЗ ${i + 1}: ${o.orderNum} Клиент: @${o.tgName} ФИО: ${o.name} Тел: ${o.phone} Город: ${o.city} Адрес: ${o.address} Товары: ${o.products.map(p => p.name).join(', ')} Сумма: ${o.total}₽ `;
+    summary += `ЗАКАЗ ${i + 1}: ${o.orderNum} Клиент: @${o.tgName} ФИО: ${o.name} Тел: ${o.phone} Город: ${o.city} Адрес: ${o.address} Товары: ${o.products.map(p => p.name).join(', ')} Итого: ${o.grandTotal || o.total}₽ `;
   });
 
   await sendMessage(OWNER_CHAT_ID, summary);
@@ -846,12 +871,13 @@ async function handlePhoto(msg) {
       tgName: username,
       paymentScreenshot: fileUrl,
       paymentConfirmed: false,
-      preferredType: null
+      preferredType: null,
+      intentConfirmed: true
     };
 
     await sendMessage(chatId,
       '✅ Скриншот получен!\n\n' +
-      'Напишите сумму перевода цифрами (например: 2139), чтобы я подтвердил оплату.'
+      'Напишите сумму перевода цифрами, например: 2139.'
     );
 
     await sendMessage(OWNER_CHAT_ID,

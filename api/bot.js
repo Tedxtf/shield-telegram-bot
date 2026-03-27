@@ -117,13 +117,71 @@ function buildPriceReply(type, productsInMessage = []) {
     const p = productsInMessage[0];
     return `${p.name} стоит ${p.price}₽. Доставка обычно 300-400₽, а от 2 штук бесплатно. Если хотите, сразу добавлю в заказ.`;
   }
+
+  if (productsInMessage.length > 1) {
+    const total = calculateTotal(productsInMessage);
+    const items = productsInMessage.map(p => `${p.name} — ${p.price}₽`).join(', ');
+    return `По этим моделям сейчас так: ${items}. Вместе выходит ${total}₽, а от 2 штук доставка бесплатно. Если хотите, сразу оформлю заказ.`;
+  }
+
   if (type === 'spray') {
     return 'По баллончикам цены от 569₽ до 999₽. Самые популярные варианты — HJ-10 за 579₽ и HJ-20 за 649₽. Если хотите, сразу добавлю нужную модель.';
   }
+
   if (type === 'stun') {
     return 'По шокерам цены от 1490₽ до 2499₽. Чаще всего берут Model-800 за 1490₽ или Model-806 за 1590₽. Если хотите, сразу добавлю нужную модель.';
   }
+
   return 'Цены зависят от модели. Напишите модель или скажите, что нужен баллончик либо шокер, и я сразу сориентирую.';
+}
+
+function isInfoRequest(text) {
+  const t = normalizeText(text);
+  return [
+    'размер', 'габарит', 'вес', 'удобно', 'носить', 'с собой',
+    'карман', 'сумк', 'дальность', 'дальн', 'мощн',
+    'отлич', 'для чего', 'что лучше', 'компакт', 'удобен'
+  ].some(k => t.includes(k));
+}
+
+function buildProductInfoReply(product, text) {
+  const t = normalizeText(text);
+  const parts = [];
+
+  if (t.includes('размер') || t.includes('габарит')) {
+    parts.push(`Размер ${product.size}.`);
+  }
+
+  if (t.includes('вес') && product.weight && product.weight !== '—') {
+    parts.push(`Вес ${product.weight}.`);
+  }
+
+  if (t.includes('дальность') || t.includes('дальн')) {
+    if (product.range) parts.push(`По работе: ${product.range}.`);
+  }
+
+  if (
+    t.includes('носить') ||
+    t.includes('с собой') ||
+    t.includes('карман') ||
+    t.includes('сумк') ||
+    t.includes('удобно')
+  ) {
+    const bulky = /150×Ø35|115×Ø35|243|376|182|176/.test(product.size || '');
+    if (bulky) {
+      parts.push('Носить с собой можно, но это уже не самый компактный формат — удобнее сумка, бардачок или большая куртка.');
+    } else {
+      parts.push('Да, для повседневного ношения формат достаточно удобный, особенно в сумке или кармане одежды.');
+    }
+  }
+
+  if (parts.length === 0) {
+    parts.push(product.desc ? `${product.desc}.` : 'Это удачная модель для повседневного использования.');
+    if (product.size) parts.push(`Размер ${product.size}.`);
+    if (product.weight && product.weight !== '—') parts.push(`Вес ${product.weight}.`);
+  }
+
+  return `${product.name}: ${parts.join(' ')} Если хотите, могу сразу добавить в заказ.`;
 }
 
 function detectPreferredType(text) {
@@ -165,7 +223,15 @@ function wantsHuman(text) {
 
 function hasPurchaseSignal(text) {
   const t = normalizeText(text);
-  return ['заказать', 'оформить заказ', 'хочу заказать', 'купить', 'приобрести', 'беру', 'оформляем', 'забираю', 'оформи', 'добавь', 'добавьте', 'нужен', 'нужна', 'нужно', 'хочу', 'возьму'].some(k => t.includes(k));
+  return [
+    'заказать', 'оформить заказ', 'хочу заказать',
+    'купить', 'куплю', 'купим',
+    'приобрести', 'беру',
+    'возьму', 'возьмем', 'возьмём',
+    'оформляем', 'забираю', 'оформи',
+    'добавь', 'добавьте',
+    'нужен', 'нужна', 'нужно', 'хочу'
+  ].some(k => t.includes(k));
 }
 
 function wantsModifyOrder(text) {
@@ -317,24 +383,38 @@ async function handleContextualOrderMessage(chatId, state, username, text) {
   const preferredTypeFromText = detectPreferredType(text) || order.preferredType;
   const asksPrice = isPriceRequest(text);
   const asksCatalog = isCatalogRequest(text);
+  const infoRequest = isInfoRequest(text);
   const purchaseSignal = hasPurchaseSignal(text);
   const wantsModify = wantsModifyOrder(text);
   const justPriceForProduct = asksPrice && products.length > 0 && !purchaseSignal && !wantsModify;
 
   if (!order) return false;
 
+  if (order.step !== 'payment_amount' && infoRequest && products.length === 1) {
+    await sendMessage(chatId, buildProductInfoReply(products[0], text));
+    return true;
+  }
+
+  if (order.step !== 'payment_amount' && products.length > 0 && (purchaseSignal || wantsModify)) {
+    const addMode =
+      order.products.length > 0 &&
+      (normalizeText(text).includes('еще') || normalizeText(text).includes('ещё'));
+
+    await startOrderFromProducts(chatId, state, username, products, addMode ? 'add' : 'replace');
+    return true;
+  }
+
   if (order.step !== 'payment_amount' && justPriceForProduct) {
     await sendMessage(chatId, buildPriceReply(preferredTypeFromText, products));
     return true;
   }
 
-  if (order.step !== 'payment_amount' && products.length > 0) {
-    const addMode = order.products.length > 0 && (normalizeText(text).includes('еще') || normalizeText(text).includes('ещё'));
-    await startOrderFromProducts(chatId, state, username, products, addMode ? 'add' : 'replace');
-    return true;
-  }
-
-  if (order.step !== 'payment_amount' && order.step === 'product_selection' && preferredTypeFromText && (asksPrice || asksCatalog || purchaseSignal || wantsModify)) {
+  if (
+    order.step !== 'payment_amount' &&
+    order.step === 'product_selection' &&
+    preferredTypeFromText &&
+    (asksPrice || asksCatalog || purchaseSignal || wantsModify)
+  ) {
     if (asksPrice) {
       await sendMessage(chatId, buildPriceReply(preferredTypeFromText));
       return true;
@@ -487,27 +567,33 @@ async function handleMessage(msg) {
   const preferredTypeFromText = detectPreferredType(text);
   const purchaseSignal = hasPurchaseSignal(text);
   const asksPrice = isPriceRequest(text);
+  const infoRequest = isInfoRequest(text);
 
   if (state.order) {
     const handledByContext = await handleContextualOrderMessage(chatId, state, username, text);
     if (handledByContext) return;
   }
 
-  if (!state.order && asksPrice && (productsInMessage.length > 0 || preferredTypeFromText)) {
-    await sendMessage(chatId, buildPriceReply(preferredTypeFromText, productsInMessage));
-    return;
+  if (!state.order && infoRequest && productsInMessage.length === 1) {
+  await sendMessage(chatId, buildProductInfoReply(productsInMessage[0], text));
+  return;
   }
 
-  if (!state.order && productsInMessage.length > 0 && !purchaseSignal) {
-    await sendMessage(chatId, buildPriceReply(preferredTypeFromText, productsInMessage));
-    return;
+  if (!state.order && asksPrice && (productsInMessage.length > 0 || preferredTypeFromText)) {
+  await sendMessage(chatId, buildPriceReply(preferredTypeFromText, productsInMessage));
+  return;
   }
 
   if (!state.order && purchaseSignal && productsInMessage.length > 0) {
-    await startOrderFromProducts(chatId, state, username, productsInMessage, 'replace');
-    return;
+  await startOrderFromProducts(chatId, state, username, productsInMessage, 'replace');
+  return;
   }
 
+  if (!state.order && productsInMessage.length > 0 && !purchaseSignal) {
+  await sendMessage(chatId, buildPriceReply(preferredTypeFromText, productsInMessage));
+  return;
+  }
+  
   if (!state.order && purchaseSignal && preferredTypeFromText) {
     state.order = createEmptyOrder(username, preferredTypeFromText);
     await sendMessage(chatId, buildSelectionHelp(preferredTypeFromText));

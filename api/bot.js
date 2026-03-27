@@ -213,6 +213,29 @@ async function handleMessage(msg) {
   if (state.order) {
     const order = state.order;
     
+    // 处理金额确认（用户发送截图后输入金额）
+    if (order.step === 'payment_amount') {
+      const amount = parseInt(text.replace(/\D/g, ''));
+      if (amount > 0) {
+        order.total = amount;
+        order.step = 'name';
+        order.paymentConfirmed = true;
+        await sendMessage(chatId, 
+          `✅ Оплата ${amount}₽ подтверждена!\n\n` +
+          `Давайте оформим доставку. Как вас зовут? (ФИО полностью)`
+        );
+        
+        await sendMessage(OWNER_CHAT_ID, 
+          `💰 Платёж от @${username}\n` +
+          `Сумма: ${amount}₽\n` +
+          `Статус: ожидает данные для доставки`
+        );
+      } else {
+        await sendMessage(chatId, 'Пожалуйста, введите сумму цифрами (например: 2139)');
+      }
+      return;
+    }
+    
     if (order.step === 'name') {
       order.data.name = text;
       order.step = 'phone';
@@ -418,91 +441,51 @@ setInterval(sendDailySummary, 60 * 60 * 1000);
 async function handlePhoto(msg) {
   const chatId = msg.chat.id;
   const username = msg.from?.username || msg.from?.first_name || 'unknown';
-  const photo = msg.photo?.[msg.photo.length - 1]; // 获取最大尺寸的图片
+  const photo = msg.photo?.[msg.photo.length - 1];
   
   if (!photo) return;
   
   console.log(`📸 ${username} отправил фото`);
   
-  // 获取图片文件
   try {
+    // 获取图片文件信息
     const fileRes = await axios.get(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${photo.file_id}`);
     const filePath = fileRes.data.result.file_path;
     const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${filePath}`;
     
-    // 用 DeepSeek Vision 分析图片
-    const visionRes = await axios.post('https://api.deepseek.com/chat/completions', {
-      model: 'deepseek-chat',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Это скриншот банковского перевода? Если да, напиши только сумму цифрами (например: 1200). Если нет суммы или это не платёж, напиши "нет".' },
-            { type: 'image_url', image_url: { url: fileUrl } }
-          ]
-        }
-      ],
-      max_tokens: 50
-    }, {
-      headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }
-    });
-    
-    const analysis = visionRes.data.choices[0].message.content.trim();
-    console.log(`🔍 Анализ фото: ${analysis}`);
-    
-    // 提取金额（只取数字）
-    const amountMatch = analysis.match(/\d+/);
-    
-    if (amountMatch) {
-      // 有金额，进入收货信息收集
-      const amount = amountMatch[0];
-      
-      // 初始化订单状态（如果没有）
-      if (!conversations.has(chatId)) {
-        conversations.set(chatId, { messages: [{ role: 'system', content: SYSTEM_PROMPT }], order: null });
-      }
-      const state = conversations.get(chatId);
-      
-      // 设置订单状态为收集姓名
-      state.order = { 
-        products: [], 
-        total: parseInt(amount), 
-        step: 'name', 
-        data: {}, 
-        hasSpray: false, 
-        tgName: username,
-        paymentConfirmed: true
-      };
-      
-      await sendMessage(chatId, 
-        `✅ Платёж на ${amount}₽ подтверждён!\n\n` +
-        `Давайте оформим доставку. Как вас зовут? (ФИО полностью)`
-      );
-      
-      // 通知店主
-      await sendMessage(OWNER_CHAT_ID, 
-        `💰 Платёж от @${username}\n` +
-        `Сумма: ${amount}₽\n` +
-        `Статус: ожидает данные для доставки`
-      );
-      
-    } else {
-      // 无金额，转人工
-      await sendMessage(chatId, 
-        'Не вижу подтверждения оплаты на скриншоте.\n\n' +
-        'Если возникли проблемы с переводом, напишите @drvapeservice — он поможет разобраться и оформить заказ вручную.'
-      );
-      
-      await sendMessage(OWNER_CHAT_ID, 
-        `⚠️ @${username} отправил фото без подтверждения платежа\n` +
-        `Chat ID: ${chatId}`
-      );
+    // 初始化订单状态
+    if (!conversations.has(chatId)) {
+      conversations.set(chatId, { messages: [{ role: 'system', content: SYSTEM_PROMPT }], order: null });
     }
+    const state = conversations.get(chatId);
+    
+    // 设置订单状态为等待金额确认
+    state.order = { 
+      products: [], 
+      total: 0, 
+      step: 'payment_amount', 
+      data: {}, 
+      hasSpray: false, 
+      tgName: username,
+      paymentScreenshot: fileUrl
+    };
+    
+    await sendMessage(chatId, 
+      '✅ Скриншот получен!\n\n' +
+      'Напишите сумму перевода цифрами (например: 2139), чтобы я подтвердил оплату.'
+    );
+    
+    // 通知店主
+    await sendMessage(OWNER_CHAT_ID, 
+      `📸 @${username} отправил скриншот оплаты\n` +
+      `Ссылка: ${fileUrl}\n` +
+      `Ожидает подтверждения суммы...`
+    );
     
   } catch (e) {
     console.error('Ошибка обработки фото:', e.message);
     await sendMessage(chatId, 
-      'Не удалось обработать изображение. Пожалуйста, свяжитесь с @drvapeservice для подтверждения оплаты.'
+      'Получил фото, но не удалось сохранить. Напишите сумму перевода цифрами для подтверждения.'
     );
   }
 }

@@ -18,16 +18,16 @@ const PRODUCTS = {
     'HJ-110': { name: 'HJ-110 (110ml)', price: 2190, desc: 'Профессиональный', bestFor: 'крупные животные' },
     'HJ-110S': { name: 'HJ-110S (110ml)', price: 2490, desc: 'Полицейский, струйный', bestFor: 'встречный ветер' },
     // 电棍
-    'Model-806': { name: 'Model-806', price: 2490, desc: 'Универсальная модель', bestFor: 'любые ситуации' },
-    'Model-1202': { name: 'Model-1202', price: 2890, desc: 'Усиленный корпус', bestFor: 'активное использование' },
-    'Model-669': { name: 'Model-669', price: 3290, desc: 'Увеличенная мощность', bestFor: 'длительная работа' },
-    'Model-800': { name: 'Model-800', price: 2690, desc: 'Классический дизайн', bestFor: 'оптимальный выбор' },
-    'Model-309': { name: 'Model-309', price: 2290, desc: 'Компактный размер', bestFor: 'портативность' },
-    'Model-398': { name: 'Model-398', price: 2790, desc: 'Эргономичный дизайн', bestFor: 'город и природа' },
-    'Model-1108': { name: 'Model-1108', price: 3490, desc: 'Мощный разряд', bestFor: 'экстремальные ситуации' },
-    'Model-1158': { name: 'Model-1158', price: 3890, desc: 'Профессиональный уровень', bestFor: 'максимальная защита' },
-    'Model-1320': { name: 'Model-1320', price: 4290, desc: 'Максимальная мощность', bestFor: 'топовая защита' },
-    'Model-1138': { name: 'Model-1138', price: 2990, desc: 'Компактный и мощный', bestFor: 'ежедневное ношение' }
+    'Model-806': { name: 'Model-806', price: 1590, desc: 'Универсальная модель', bestFor: 'любые ситуации' },
+    'Model-1202': { name: 'Model-1202', price: 1590, desc: 'Усиленный корпус', bestFor: 'активное использование' },
+    'Model-669': { name: 'Model-669', price: 1690, desc: 'Увеличенная мощность', bestFor: 'длительная работа' },
+    'Model-800': { name: 'Model-800', price: 1490, desc: 'Классический дизайн', bestFor: 'оптимальный выбор' },
+    'Model-309': { name: 'Model-309', price: 1690, desc: 'Компактный размер', bestFor: 'портативность' },
+    'Model-398': { name: 'Model-398', price: 1590, desc: 'Эргономичный дизайн', bestFor: 'город и природа' },
+    'Model-1108': { name: 'Model-1108', price: 2099, desc: 'Мощный разряд', bestFor: 'экстремальные ситуации' },
+    'Model-1158': { name: 'Model-1158', price: 1999, desc: 'Профессиональный уровень', bestFor: 'максимальная защита' },
+    'Model-1320': { name: 'Model-1320', price: 2199, desc: 'Максимальная мощность', bestFor: 'топовая защита' },
+    'Model-1138': { name: 'Model-1138', price: 2499, desc: 'Компактный и мощный', bestFor: 'ежедневное ношение' }
 };
 
 // 生成产品目录文本

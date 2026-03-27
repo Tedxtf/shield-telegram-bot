@@ -106,15 +106,25 @@ async function handleMessage(msg) {
 }
 
 async function sendMessage(chatId, text) {
-  try {
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: chatId,
-      text: text,
-      parse_mode: 'Markdown'
-    });
-  } catch (err) {
-    console.error('发送失败:', err.message);
-  }
+    try {
+        // 先尝试用 Markdown 发送
+        await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            chat_id: chatId,
+            text: text,
+            parse_mode: 'Markdown'
+        });
+    } catch (err) {
+        console.error('Markdown 发送失败，尝试纯文本:', err.message);
+        try {
+            // 如果 Markdown 失败，用纯文本发送
+            await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                chat_id: chatId,
+                text: text
+            });
+        } catch (err2) {
+            console.error('纯文本也失败:', err2.message);
+        }
+    }
 }
 
 async function callDeepSeek(messages) {

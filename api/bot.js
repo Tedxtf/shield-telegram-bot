@@ -99,7 +99,12 @@ function isDiscountRequest(text) {
 
 function isOrderRequest(text) {
   const t = text.toLowerCase();
-  return ['заказать','оформить заказ','хочу заказать','купить','приобрести','беру','оформляем'].some(k => t.includes(k));
+  // 必须包含明确的下单词，且不能只是"添加"这种模糊词
+  const orderWords = ['заказать', 'оформить заказ', 'хочу заказать', 'купить', 'приобрести', 'беру', 'оформляем', 'забираю', 'оформи'];
+  const hasOrderWord = orderWords.some(k => t.includes(k));
+  // 排除"添加"单独使用的情况（需要配合具体型号）
+  if (t.includes('добавь') && !extractProducts(text).length) return false;
+  return hasOrderWord;
 }
 
 function isComplexRequest(text) {

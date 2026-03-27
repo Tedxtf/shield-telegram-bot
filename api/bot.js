@@ -1,4 +1,3 @@
-const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 
 // ========== 配置 ==========
@@ -71,7 +70,7 @@ function getProductKnowledge() {
 }
 
 // ========== 系统提示词（包含商品库） ==========
-const SYSTEM_PROMPT = `Вы - AI-консультант магазина самообороны "ЩИТ".
+const SYSTEM_PROMPT = `Вы - AI-консультант магазина самообороны "ЩИТ". 
 
 ВАЖНО: Используйте ТОЛЬКО товары из списка ниже. Запрещено придумывать цены, модели или характеристики!
 
@@ -140,7 +139,7 @@ function isCatalogRequest(text) {
         'электрошокер',
         'шокер'
     ];
-
+    
     return catalogKeywords.some(keyword => lowerText.includes(keyword));
 }
 
@@ -149,21 +148,21 @@ async function handleMessage(msg) {
     const chatId = msg.chat.id;
     const text = msg.text || '';
     const username = msg.from?.username || msg.from?.first_name || 'unknown';
-
+    
     if (!text) return;
-
+    
     console.log(`📩 ${username}: ${text}`);
-
+    
     // 初始化对话历史
     if (!conversations.has(chatId)) {
         conversations.set(chatId, [{ role: 'system', content: SYSTEM_PROMPT }]);
     }
-
+    
     const history = conversations.get(chatId);
-
+    
     // ========== 命令处理 ==========
     if (text === '/start') {
-        await sendMessage(chatId,
+        await sendMessage(chatId, 
             '👋 Добро пожаловать в ЩИТ!\n\n' +
             'Я ваш AI-консультант по средствам самообороны 🤖\n\n' +
             '💡 Чем могу помочь:\n' +
@@ -175,29 +174,29 @@ async function handleMessage(msg) {
         );
         return;
     }
-
+    
     // 检查是否为目录请求（包含更多自然问法）
     if (isCatalogRequest(text)) {
         await sendMessage(chatId, getProductCatalog());
         return;
     }
-
+    
     // 转人工服务
-    if (text.toLowerCase().includes('консультант') ||
-        text.toLowerCase().includes('человек') ||
+    if (text.toLowerCase().includes('консультант') || 
+        text.toLowerCase().includes('человек') || 
         text.toLowerCase().includes('оператор') ||
         text.toLowerCase().includes('/human')) {
-
+        
         await sendMessage(chatId, '👨‍💼 Переключаю на личного консультанта...');
         await sendMessage(chatId, '👉 @drvapeservice - напишите напрямую владельцу');
         await sendMessage(OWNER_CHAT_ID, `🚨 ${username} запросил оператора!\nChat ID: ${chatId}`);
         return;
     }
-
+    
     // ========== AI 对话 ==========
     history.push({ role: 'user', content: text });
     if (history.length > 20) history.splice(1, history.length - 20);
-
+    
     try {
         const response = await axios.post('https://api.deepseek.com/chat/completions', {
             model: 'deepseek-chat',
@@ -210,17 +209,17 @@ async function handleMessage(msg) {
                 'Content-Type': 'application/json'
             }
         });
-
+        
         const aiReply = response.data.choices[0].message.content;
         history.push({ role: 'assistant', content: aiReply });
-
+        
         await sendMessage(chatId, aiReply);
-
+        
         // 通知店主（长消息）
         if (chatId != OWNER_CHAT_ID && text.length > 15) {
             await sendMessage(OWNER_CHAT_ID, `🔔 ${username}: ${text.substring(0, 40)}...`);
         }
-
+        
     } catch (err) {
         console.error('AI 错误:', err.message);
         await sendMessage(chatId, 'Извините, система временно недоступна. Напишите @drvapeservice');
@@ -230,14 +229,14 @@ async function handleMessage(msg) {
 // ========== Vercel Handler ==========
 module.exports = async (req, res) => {
     if (req.method === 'GET') {
-        return res.status(200).json({
-            status: 'OK',
+        return res.status(200).json({ 
+            status: 'OK', 
             message: 'Bot is running',
             products: Object.keys(PRODUCTS).length,
             webhook: 'Set: https://api.telegram.org/bot<TOKEN>/setWebhook?url=<URL>/api/bot'
         });
     }
-
+    
     if (req.method === 'POST') {
         const { message } = req.body;
         if (message) {
@@ -245,5 +244,6 @@ module.exports = async (req, res) => {
         }
         return res.status(200).json({ ok: true });
     }
-
+    
     return res.status(405).json({ error: 'Method not allowed' });
+};

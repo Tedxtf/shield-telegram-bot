@@ -1,249 +1,402 @@
 const axios = require('axios');
 
-// ========== 配置 ==========
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const OWNER_CHAT_ID = process.env.OWNER_CHAT_ID;
 
-// ========== 真实商品库 ==========
 const PRODUCTS = {
-    // 胡椒喷雾
-    'HJ-5': { name: 'HJ-5 (5ml)', price: 559, desc: 'Дизайн как помада, компактный', bestFor: 'женщины, ежедневное ношение' },
-    'HJ-10': { name: 'HJ-10 (10ml)', price: 569, desc: 'Дизайн как духи, элегантный', bestFor: 'женщины, сумочка' },
-    'HJ-15': { name: 'HJ-15 (15ml)', price: 599, desc: 'Оптимальный баланс', bestFor: 'город, универсальный' },
-    'HJ-15W': { name: 'HJ-15W (15ml)', price: 599, desc: 'Видно остаток жидкости', bestFor: 'контроль расхода' },
-    'HJ-20': { name: 'HJ-20 (20ml)', price: 649, desc: 'Стандартный размер', bestFor: 'город, надежная защита' },
-    'HJ-20K': { name: 'HJ-20K (20ml)', price: 699, desc: 'С кольцом для ключей', bestFor: 'удобное ношение' },
-    'HJ-60': { name: 'HJ-60 (60ml)', price: 799, desc: 'Увеличенный объем', bestFor: 'походы, природа' },
-    'HJ-110': { name: 'HJ-110 (110ml)', price: 899, desc: 'Профессиональный', bestFor: 'крупные животные' },
-    'HJ-110S': { name: 'HJ-110S (110ml)', price: 1099, desc: 'Полицейский, струйный', bestFor: 'встречный ветер' },
-    // 电棍
-    'Model-806': { name: 'Model-806', price: 1590, desc: 'Универсальная модель', bestFor: 'любые ситуации' },
-    'Model-1202': { name: 'Model-1202', price: 1590, desc: 'Усиленный корпус', bestFor: 'активное использование' },
-    'Model-669': { name: 'Model-669', price: 1690, desc: 'Увеличенная мощность', bestFor: 'длительная работа' },
-    'Model-800': { name: 'Model-800', price: 1490, desc: 'Классический дизайн', bestFor: 'оптимальный выбор' },
-    'Model-309': { name: 'Model-309', price: 1690, desc: 'Компактный размер', bestFor: 'портативность' },
-    'Model-398': { name: 'Model-398', price: 1590, desc: 'Эргономичный дизайн', bestFor: 'город и природа' },
-    'Model-1108': { name: 'Model-1108', price: 2099, desc: 'Мощный разряд', bestFor: 'экстремальные ситуации' },
-    'Model-1158': { name: 'Model-1158', price: 1999, desc: 'Профессиональный уровень', bestFor: 'максимальная защита' },
-    'Model-1320': { name: 'Model-1320', price: 2199, desc: 'Максимальная мощность', bestFor: 'топовая защита' },
-    'Model-1138': { name: 'Model-1138', price: 2499, desc: 'Компактный и мощный', bestFor: 'ежедневное ношение' }
+  'HJ-5': { name: 'HJ-5 (5ml)', price: 890, type: 'spray' },
+  'HJ-10': { name: 'HJ-10 (10ml)', price: 990, type: 'spray' },
+  'HJ-15': { name: 'HJ-15 (15ml)', price: 1090, type: 'spray' },
+  'HJ-15W': { name: 'HJ-15W (15ml)', price: 1190, type: 'spray' },
+  'HJ-20': { name: 'HJ-20 (20ml)', price: 1290, type: 'spray' },
+  'HJ-20K': { name: 'HJ-20K (20ml)', price: 1390, type: 'spray' },
+  'HJ-60': { name: 'HJ-60 (60ml)', price: 1690, type: 'spray' },
+  'HJ-110': { name: 'HJ-110 (110ml)', price: 2190, type: 'spray' },
+  'HJ-110S': { name: 'HJ-110S (110ml)', price: 2490, type: 'spray' },
+  'Model-806': { name: 'Model-806', price: 2490, type: 'stun' },
+  'Model-1202': { name: 'Model-1202', price: 2890, type: 'stun' },
+  'Model-669': { name: 'Model-669', price: 3290, type: 'stun' },
+  'Model-800': { name: 'Model-800', price: 2690, type: 'stun' },
+  'Model-309': { name: 'Model-309', price: 2290, type: 'stun' },
+  'Model-398': { name: 'Model-398', price: 2790, type: 'stun' },
+  'Model-1108': { name: 'Model-1108', price: 3490, type: 'stun' },
+  'Model-1158': { name: 'Model-1158', price: 3890, type: 'stun' },
+  'Model-1320': { name: 'Model-1320', price: 4290, type: 'stun' },
+  'Model-1138': { name: 'Model-1138', price: 2990, type: 'stun' }
 };
 
-// 生成产品目录文本
-function getProductCatalog() {
-    let catalog = '📦 НАШИ ТОВАРЫ:\n\n';
-    catalog += '🌶️ <b>ПЕРЦОВЫЕ БАЛЛОНЧИКИ:</b>\n';
-    for (const [key, val] of Object.entries(PRODUCTS)) {
-        if (key.startsWith('HJ')) {
-            catalog += `• ${val.name} — ${val.price}₽\n`;
-        }
-    }
-    catalog += '\n⚡ <b>ЭЛЕКТРОШОКЕРЫ:</b>\n';
-    for (const [key, val] of Object.entries(PRODUCTS)) {
-        if (key.startsWith('Model')) {
-            catalog += `• ${val.name} — ${val.price}₽\n`;
-        }
-    }
-    catalog += '\n🚚 <b>Доставка:</b> Москва/СПб, CDEK 2-3 дня\n';
-    catalog += '🎁 <b>Бесплатно от 2 шт</b> | 📦 Анонимная упаковка\n\n';
-    catalog += '💡 Для подбора напишите ваш бюджет и цель использования';
-    return catalog;
+const orderStates = new Map();
+const dailyOrders = [];
+
+function getCatalog() {
+  let cat = '📦 НАШИ ТОВАРЫ:\n\n🌶️ ПЕРЦОВЫЕ БАЛЛОНЧИКИ:\n';
+  for (const [k, v] of Object.entries(PRODUCTS)) {
+    if (v.type === 'spray') cat += `• ${v.name} — ${v.price}₽\n`;
+  }
+  cat += '\n⚡ ЭЛЕКТРОШОКЕРЫ:\n';
+  for (const [k, v] of Object.entries(PRODUCTS)) {
+    if (v.type === 'stun') cat += `• ${v.name} — ${v.price}₽\n`;
+  }
+  cat += '\n🚚 Доставка 300-400₽\n';
+  cat += '🎁 <b>БЕСПЛАТНАЯ ДОСТАВКА при заказе от 2 шт!</b>\n';
+  cat += '💡 Совет: возьмите баллончик + шокер — выгодно и универсально';
+  return cat;
 }
 
-// 生成商品库文本给 AI
-function getProductKnowledge() {
-    let knowledge = 'ТОЧНЫЙ КАТАЛОГ ТОВАРОВ (запрещено придумывать другие цены и модели):\n\n';
-    knowledge += 'ПЕРЦОВЫЕ БАЛЛОНЧИКИ:\n';
-    for (const [key, val] of Object.entries(PRODUCTS)) {
-        if (key.startsWith('HJ')) {
-            knowledge += `- ${val.name}: ${val.price}₽ — ${val.desc} (${val.bestFor})\n`;
-        }
-    }
-    knowledge += '\nЭЛЕКТРОШОКЕРЫ:\n';
-    for (const [key, val] of Object.entries(PRODUCTS)) {
-        if (key.startsWith('Model')) {
-            knowledge += `- ${val.name}: ${val.price}₽ — ${val.desc} (${val.bestFor})\n`;
-        }
-    }
-    return knowledge;
-}
+const SYSTEM_PROMPT = `Вы — консультант магазина ЩИТ. Говорите как живой человек, тепло и профессионально. НЕ используйте * в ответах.
 
-// ========== 系统提示词（包含商品库） ==========
-const SYSTEM_PROMPT = `Вы - AI-консультант магазина самообороны "ЩИТ". 
+ТОВАРЫ:
+Перцовые: HJ-5(890₽), HJ-10(990₽), HJ-15(1090₽), HJ-20(1290₽), HJ-60(1690₽), HJ-110(2190₽)
+Шокеры: Model-309(2290₽), Model-806(2490₽), Model-1202(2890₽), Model-1320(4290₽)
 
-ВАЖНО: Используйте ТОЛЬКО товары из списка ниже. Запрещено придумывать цены, модели или характеристики!
+ДОСТАВКА: 300-400₽, но БЕСПЛАТНО от 2 шт! Активно предлагайте взять 2 товара.
 
-${getProductKnowledge()}
+ВАЖНО:
+- Цены фиксированы, скидок нет
+- Оплата только переводом на Сбер/Тинькофф +79213393904 (Чао)
+- После оплаты нужен скриншот
+- Наличные не принимаем
+- Других способов оплаты нет
 
-ПРАВИЛА ОТВЕТОВ:
-1. Всегда используйте точные цены из списка выше
-2. При запросе каталога - отправляйте полный список
-3. Для подбора спрашивайте: бюджет, цель (город/природа/от собак)
-4. Рекомендуйте 2-3 конкретные модели из списка с точными ценами
-5. Создавайте легкую срочность
-6. Отвечайте по-русски, кратко, с эмодзи
-7. Если товара нет в списке - не предлагайте!
+ЗАДАЧИ: консультация, подбор, оформление заказа. Всё остальное — к @drvapeservice`;
 
-КОМАНДЫ:
-- "каталог", "цены", "прайс" - показать товары
-- "консультант", "человек", "оператор" - перевод на @drvapeservice`;
-
-// 存储对话历史
 const conversations = new Map();
 
-// ========== 发送消息 ==========
-async function sendMessage(chatId, text, parseMode = 'HTML') {
-    try {
-        await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-            chat_id: chatId,
-            text: text,
-            parse_mode: parseMode
-        });
-    } catch (err) {
-        console.error('发送失败:', err.message);
-        try {
-            await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                chat_id: chatId,
-                text: text.replace(/<[^>]+>/g, '')
-            });
-        } catch (err2) {
-            console.error('纯文本也失败:', err2.message);
-        }
-    }
+async function sendMessage(chatId, text) {
+  try {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: chatId,
+      text: text,
+      parse_mode: 'HTML'
+    });
+  } catch (e) {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: chatId,
+      text: text.replace(/<[^>]+>/g, '')
+    });
+  }
 }
 
-// ========== 检查是否为目录请求 ==========
 function isCatalogRequest(text) {
-    const lowerText = text.toLowerCase();
-    const catalogKeywords = [
-        '/catalog',
-        'каталог',
-        'цены',
-        'прайс',
-        'прайслист',
-        'сколько стоит',
-        'какие перцовые баллончики',
-        'какие баллончики есть',
-        'что есть из перцовых',
-        'какие есть шокеры',
-        'что есть в наличии',
-        'покажи товары',
-        'покажите товары',
-        'что у вас есть',
-        'ассортимент',
-        'выбор',
-        'модели',
-        'виды',
-        'перцовый баллончик',
-        'электрошокер',
-        'шокер'
-    ];
-    
-    return catalogKeywords.some(keyword => lowerText.includes(keyword));
+  const t = text.toLowerCase();
+  return ['каталог','цены','прайс','сколько стоит','какие есть','что есть','покажи товары','ассортимент','выбор','модели','виды','перцовый','шокер','баллончик'].some(k => t.includes(k));
 }
 
-// ========== 处理消息 ==========
+function isDiscountRequest(text) {
+  const t = text.toLowerCase();
+  return ['скидк','дешевле','подешевле','бонус','акци','подарок','скинь цену','торг','можно ли дешевле'].some(k => t.includes(k));
+}
+
+function isOrderRequest(text) {
+  const t = text.toLowerCase();
+  return ['заказать','оформить заказ','хочу заказать','купить','приобрести','беру','оформляем'].some(k => t.includes(k));
+}
+
+function isComplexRequest(text) {
+  const t = text.toLowerCase();
+  return ['возврат','жалоба','претензия','спор','развод','полиция','юрист','адвокат','суд','проблема с заказом','не пришло','сломано','брак'].some(k => t.includes(k));
+}
+
+function extractProducts(text) {
+  const found = [];
+  const t = text.toLowerCase();
+  for (const [code, data] of Object.entries(PRODUCTS)) {
+    if (t.includes(code.toLowerCase()) || t.includes(data.name.toLowerCase().replace(' ', ''))) {
+      found.push({ code, ...data });
+    }
+  }
+  return found;
+}
+
+function validateAddress(address) {
+  const hasCity = /москва|спб|санкт-петербург|казань|новосибирск|екатеринбург|нижний|челябинск|самара|омск|ростов|уфа|красноярск|воронеж|пермь|волгоград/i.test(address);
+  const hasStreet = /улица|ул\.|проспект|пр-т|бульвар|переулок|просп/i.test(address);
+  const hasNumber = /\d+/.test(address);
+  return { hasCity, hasStreet, hasNumber, isValid: hasCity && hasStreet && hasNumber };
+}
+
 async function handleMessage(msg) {
-    const chatId = msg.chat.id;
-    const text = msg.text || '';
-    const username = msg.from?.username || msg.from?.first_name || 'unknown';
+  const chatId = msg.chat.id;
+  const text = msg.text || '';
+  const username = msg.from?.username || msg.from?.first_name || 'unknown';
+  
+  if (!text) return;
+  console.log(`📩 ${username}: ${text}`);
+  
+  if (!conversations.has(chatId)) {
+    conversations.set(chatId, { messages: [{ role: 'system', content: SYSTEM_PROMPT }], order: null });
+  }
+  const state = conversations.get(chatId);
+  
+  // /start - 专业开场白
+  if (text === '/start') {
+    await sendMessage(chatId, 
+      'Здравствуйте! 👋\n\n' +
+      'Меня зовут Антон, я консультант магазина ЩИТ. Помогу подобрать средство самообороны под ваши задачи.\n\n' +
+      'Чем могу быть полезен?\n' +
+      '• 📋 Покажу актуальные цены и наличие\n' +
+      '• 🎯 Подберу под конкретную ситуацию\n' +
+      '• 📝 Оформлю заказ быстро и просто\n\n' +
+      '💡 Кстати, при заказе от 2 шт доставка бесплатно — экономия 300-400₽\n\n' +
+      'Если удобнее поговорить голосом или есть сложные вопросы — пишите моему коллеге @drvapeservice'
+    );
+    return;
+  }
+  
+  // 复杂问题转人工
+  if (isComplexRequest(text)) {
+    await sendMessage(chatId, 
+      'Этот вопрос требует личного внимания. Переключаю вас на @drvapeservice — он разберётся и поможет решить.'
+    );
+    await sendMessage(OWNER_CHAT_ID, `🚨 ${username}: сложный запрос\n"${text}"\nChat ID: ${chatId}`);
+    return;
+  }
+  
+  // 转人工
+  if (text.toLowerCase().includes('консультант') || text.toLowerCase().includes('человек') || text.toLowerCase().includes('оператор')) {
+    await sendMessage(chatId, 'Понял вас. Вот контакт моего коллеги @drvapeservice — он на связи и поможет со всеми вопросами.');
+    await sendMessage(OWNER_CHAT_ID, `👤 ${username} запросил оператора\nChat ID: ${chatId}`);
+    return;
+  }
+  
+  // 折扣
+  if (isDiscountRequest(text)) {
+    await sendMessage(chatId, 
+      'Цены у нас фиксированные, полномочий менять их у меня нет.\n\n' +
+      'По вопросам оптовых закупок или специальных условий напишите @drvapeservice — он расскажет про наши оптовые прайсы.'
+    );
+    return;
+  }
+  
+  // 目录
+  if (isCatalogRequest(text)) {
+    await sendMessage(chatId, getCatalog());
+    return;
+  }
+  
+  // 开始下单
+  if (isOrderRequest(text) && !state.order) {
+    const products = extractProducts(text);
+    if (products.length > 0) {
+      const total = products.reduce((s, p) => s + p.price, 0);
+      const hasSpray = products.some(p => p.type === 'spray');
+      state.order = { products, total, step: 'name', data: {}, hasSpray, tgName: username };
+      
+      let msg = `Отлично! Ваш выбор:\n` +
+        products.map(p => `• ${p.name} — ${p.price}₽`).join('\n') +
+        `\n\nИтого: ${total}₽`;
+      
+      if (products.length === 1) {
+        msg += '\n\n💡 Кстати, если добавите ещё один товар (любой), доставка будет бесплатной — сэкономите 300-400₽!';
+      } else {
+        msg += '\n\n✅ У вас от 2 шт — доставка бесплатно!';
+      }
+      
+      msg += '\n\nДавайте оформим заказ. Как вас зовут? (ФИО полностью)';
+      
+      await sendMessage(chatId, msg);
+      return;
+    }
+  }
+  
+  // 订单流程
+  if (state.order) {
+    const order = state.order;
     
-    if (!text) return;
-    
-    console.log(`📩 ${username}: ${text}`);
-    
-    // 初始化对话历史
-    if (!conversations.has(chatId)) {
-        conversations.set(chatId, [{ role: 'system', content: SYSTEM_PROMPT }]);
+    if (order.step === 'name') {
+      order.data.name = text;
+      order.step = 'phone';
+      await sendMessage(chatId, 'Ваш телефон? Нужен для связи курьера.\nПример: +7 999 123-45-67');
+      return;
     }
     
-    const history = conversations.get(chatId);
-    
-    // ========== 命令处理 ==========
-    if (text === '/start') {
-        await sendMessage(chatId, 
-            '👋 Добро пожаловать в ЩИТ!\n\n' +
-            'Я ваш AI-консультант по средствам самообороны 🤖\n\n' +
-            '💡 Чем могу помочь:\n' +
-            '• 📦 Каталог товаров и цены\n' +
-            '• 🎯 Подбор под ваши задачи\n' +
-            '• ❓ Ответы на вопросы\n\n' +
-            '👨‍💼 Нужен человек? Напишите "консультант" или обратитесь к @drvapeservice\n\n' +
-            'Что вас интересует?'
-        );
+    if (order.step === 'phone') {
+      if (!/\+?7[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}/.test(text)) {
+        await sendMessage(chatId, 'Проверьте формат. Введите номер как в примере: +7 999 123-45-67');
         return;
+      }
+      order.data.phone = text;
+      order.step = 'city';
+      await sendMessage(chatId, 'В каком городе нужна доставка? (Москва, СПб и т.д.)');
+      return;
     }
     
-    // 检查是否为目录请求（包含更多自然问法）
-    if (isCatalogRequest(text)) {
-        await sendMessage(chatId, getProductCatalog());
+    if (order.step === 'city') {
+      order.data.city = text;
+      order.step = 'address';
+      await sendMessage(chatId, 
+        'Полный адрес доставки:\n' +
+        '— улица\n' +
+        '— дом, квартира\n' +
+        '— подъезд, этаж (если нужно)\n\n' +
+        'Пример: ул. Ленина, дом 10, квартира 5'
+      );
+      return;
+    }
+    
+    if (order.step === 'address') {
+      const v = validateAddress(text);
+      if (!v.hasCity) {
+        await sendMessage(chatId, 'Укажите, пожалуйста, город в адресе. Например: Москва, ул. Ленина, дом 10');
         return;
+      }
+      if (!v.hasStreet) {
+        await sendMessage(chatId, 'Добавьте название улицы. Пример: ул. Ленина, дом 10, кв. 5');
+        return;
+      }
+      if (!v.hasNumber) {
+        await sendMessage(chatId, 'Укажите номер дома и квартиры');
+        return;
+      }
+      order.data.address = text;
+      order.step = 'confirm';
+      
+      await sendMessage(chatId, 
+        'Проверьте данные заказа:\n\n' +
+        `👤 ${order.data.name}\n` +
+        `📞 ${order.data.phone}\n` +
+        `🏙️ ${order.data.city}\n` +
+        `📍 ${order.data.address}\n\n` +
+        'Товары:\n' +
+        order.products.map(p => `• ${p.name} — ${p.price}₽`).join('\n') +
+        `\n\n💰 Итого: ${order.total}₽\n` +
+        (order.products.length >= 2 ? '🚚 Доставка: бесплатно\n\n' : '\n') +
+        'Всё верно? Напишите "ДА" для подтверждения.'
+      );
+      return;
     }
     
-    // 转人工服务
-    if (text.toLowerCase().includes('консультант') || 
-        text.toLowerCase().includes('человек') || 
-        text.toLowerCase().includes('оператор') ||
-        text.toLowerCase().includes('/human')) {
+    if (order.step === 'confirm') {
+      if (text.toLowerCase() === 'да' || text.toLowerCase().includes('верно')) {
+        const orderNum = `AP${new Date().toISOString().slice(2,10).replace(/-/g,'')}-${dailyOrders.length + 1}`;
         
-        await sendMessage(chatId, '👨‍💼 Переключаю на личного консультанта...');
-        await sendMessage(chatId, '👉 @drvapeservice - напишите напрямую владельцу');
-        await sendMessage(OWNER_CHAT_ID, `🚨 ${username} запросил оператора!\nChat ID: ${chatId}`);
-        return;
-    }
-    
-    // ========== AI 对话 ==========
-    history.push({ role: 'user', content: text });
-    if (history.length > 20) history.splice(1, history.length - 20);
-    
-    try {
-        const response = await axios.post('https://api.deepseek.com/chat/completions', {
-            model: 'deepseek-chat',
-            messages: history,
-            temperature: 0.7,
-            max_tokens: 800
-        }, {
-            headers: {
-                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-                'Content-Type': 'application/json'
-            }
+        // 保存订单
+        dailyOrders.push({
+          orderNum,
+          date: new Date(),
+          tgName: order.tgName,
+          name: order.data.name,
+          phone: order.data.phone,
+          city: order.data.city,
+          address: order.data.address,
+          products: order.products,
+          total: order.total
         });
         
-        const aiReply = response.data.choices[0].message.content;
-        history.push({ role: 'assistant', content: aiReply });
+        // 发送给店主
+        await sendMessage(OWNER_CHAT_ID, 
+          `🛒 НОВЫЙ ЗАКАЗ ${orderNum}\n\n` +
+          `👤 Клиент: @${order.tgName}\n` +
+          `📋 ФИО: ${order.data.name}\n` +
+          `📞 Телефон: ${order.data.phone}\n` +
+          `🏙️ Город: ${order.data.city}\n` +
+          `📍 Адрес: ${order.data.address}\n\n` +
+          'Товары:\n' +
+          order.products.map(p => `• ${p.name} — ${p.price}₽`).join('\n') +
+          `\n\n💰 Итого: ${order.total}₽`
+        );
         
-        await sendMessage(chatId, aiReply);
+        // 回复客户
+        let reply = `✅ Заказ ${orderNum} оформлен!\n\n`;
+        reply += 'Для оплаты переведите сумму на:\n';
+        reply += '💳 +79213393904 (Чао)\n';
+        reply += '🏦 Банк Санкт-Петербург\n\n';
+        reply += 'После перевода пришлите скриншот сюда.\n';
+        reply += '⏰ Заказ отправим в течение 1-2 дней после подтверждения оплаты.\n\n';
         
-        // 通知店主（长消息）
-        if (chatId != OWNER_CHAT_ID && text.length > 15) {
-            await sendMessage(OWNER_CHAT_ID, `🔔 ${username}: ${text.substring(0, 40)}...`);
+        if (order.hasSpray) {
+          reply += '⚠️ ВАЖНО: Если будете тестировать перцовый баллончик — делайте это ТОЛЬКО на открытом воздухе, подальше от людей и животных. Очень сильное средство!\n\n';
         }
         
-    } catch (err) {
-        console.error('AI 错误:', err.message);
-        await sendMessage(chatId, 'Извините, система временно недоступна. Напишите @drvapeservice');
+        reply += 'Спасибо за заказ! Если есть вопросы — @drvapeservice всегда на связи.';
+        
+        await sendMessage(chatId, reply);
+        state.order = null;
+        return;
+      } else {
+        await sendMessage(chatId, 'Что нужно изменить? Напишите: имя / телефон / город / адрес / товары');
+        return;
+      }
     }
+  }
+  
+  // AI 对话
+  state.messages.push({ role: 'user', content: text });
+  if (state.messages.length > 20) state.messages.splice(1, state.messages.length - 20);
+  
+  try {
+    const res = await axios.post('https://api.deepseek.com/chat/completions', {
+      model: 'deepseek-chat',
+      messages: state.messages,
+      temperature: 0.7,
+      max_tokens: 600
+    }, {
+      headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }
+    });
+    
+    let reply = res.data.choices[0].message.content.replace(/\*/g, '');
+    state.messages.push({ role: 'assistant', content: reply });
+    await sendMessage(chatId, reply);
+    
+    if (chatId != OWNER_CHAT_ID && text.length > 15) {
+      await sendMessage(OWNER_CHAT_ID, `🔔 ${username}: ${text.substring(0, 40)}...`);
+    }
+  } catch (e) {
+    console.error('AI error:', e.message);
+    await sendMessage(chatId, 'Технические неполадки. Напишите @drvapeservice — он поможет.');
+  }
 }
 
-// ========== Vercel Handler ==========
+// 每天早上9点发送汇总
+async function sendDailySummary() {
+  const now = new Date();
+  const moscowTime = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+  if (moscowTime.getHours() !== 9) return;
+  
+  const yesterday9am = new Date(moscowTime);
+  yesterday9am.setDate(yesterday9am.getDate() - 1);
+  yesterday9am.setHours(9, 0, 0, 0);
+  
+  const today9am = new Date(moscowTime);
+  today9am.setHours(9, 0, 0, 0);
+  
+  const yesterdayOrders = dailyOrders.filter(o => o.date >= yesterday9am && o.date < today9am);
+  
+  if (yesterdayOrders.length === 0) {
+    await sendMessage(OWNER_CHAT_ID, '📊 За вчера (9:00-9:00) заказов не было.');
+    return;
+  }
+  
+  let summary = `📊 ЗАКАЗЫ ЗА ВЧЕРА (${yesterday9am.toLocaleDateString('ru-RU')} 9:00 — ${today9am.toLocaleDateString('ru-RU')} 9:00)\n\n`;
+  summary += `Всего заказов: ${yesterdayOrders.length}\n\n`;
+  
+  yesterdayOrders.forEach((o, i) => {
+    summary += `— ЗАКАЗ ${i + 1} —\n`;
+    summary += `Номер: ${o.orderNum}\n`;
+    summary += `TG: @${o.tgName}\n`;
+    summary += `ФИО: ${o.name}\n`;
+    summary += `Тел: ${o.phone}\n`;
+    summary += `Город: ${o.city}\n`;
+    summary += `Адрес: ${o.address}\n`;
+    summary += `Товары: ${o.products.map(p => p.name).join(', ')}\n`;
+    summary += `Сумма: ${o.total}₽\n\n`;
+  });
+  
+  await sendMessage(OWNER_CHAT_ID, summary);
+}
+
+// 每小时检查是否需要发送汇总
+setInterval(sendDailySummary, 60 * 60 * 1000);
+
 module.exports = async (req, res) => {
-    if (req.method === 'GET') {
-        return res.status(200).json({ 
-            status: 'OK', 
-            message: 'Bot is running',
-            products: Object.keys(PRODUCTS).length,
-            webhook: 'Set: https://api.telegram.org/bot<TOKEN>/setWebhook?url=<URL>/api/bot'
-        });
-    }
-    
-    if (req.method === 'POST') {
-        const { message } = req.body;
-        if (message) {
-            await handleMessage(message);
-        }
-        return res.status(200).json({ ok: true });
-    }
-    
-    return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method === 'GET') {
+    return res.status(200).json({ status: 'OK', orders: dailyOrders.length });
+  }
+  if (req.method === 'POST') {
+    const { message } = req.body;
+    if (message) await handleMessage(message);
+    return res.status(200).json({ ok: true });
+  }
+  return res.status(405).json({ error: 'Method not allowed' });
 };

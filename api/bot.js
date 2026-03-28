@@ -4,6 +4,9 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const OWNER_CHAT_ID = process.env.OWNER_CHAT_ID;
 const SHIPPING_FEE = 350;
+const PAYMENT_PHONE = '+7 921 339-39-04';
+const PAYMENT_NAME = 'Чао';
+const PAYMENT_BANK = 'Банк Санкт-Петербург';
 
 const PRODUCTS = {
   'HJ-5': { name: 'HJ-5 (5ml)', price: 569, desc: 'Форм-фактор помады, сверхкомпактный, для ближней дистанции', bestFor: 'скрытое ношение, неожиданное применение, женская сумочка', size: '82×Ø18 мм', weight: '20 г', range: 'только ближняя дистанция', type: 'spray' },
@@ -43,7 +46,7 @@ const SYSTEM_PROMPT = `Ты — консультант магазина ЩИТ. 
 Шокеры: Model-800 1490₽, Model-806/1202/398 1590₽, Model-669/309 1690₽, Model-1108 1999₽, Model-1158/1320 2099₽, Model-1138 2499₽
 
 ДОСТАВКА: 350₽, бесплатно от 2 шт.
-ОПЛАТА: перевод на +79213393904 (Чао), только так.
+ОПЛАТА: только перевод по номеру телефона ${PAYMENT_PHONE} (${PAYMENT_NAME}).
 
 ЗАПРЕЩЕНО:
 - Длинные объяснения
@@ -103,6 +106,10 @@ function buildDeliveryReply(productCount = 0) {
     return 'Доставка у вас будет бесплатной, потому что в заказе уже 2 товара или больше.';
   }
   return `Доставка фиксированная — ${SHIPPING_FEE}₽. Если в заказе только 1 товар, к цене товара добавляется ${SHIPPING_FEE}₽.`;
+}
+
+function buildPaymentMethodReply() {
+  return `У нас только один способ оплаты: перевод по номеру телефона ${PAYMENT_PHONE} (${PAYMENT_NAME}). Другие способы оплаты, включая наличные, оплату при получении и перевод с иных реквизитов, мы не принимаем.`;
 }
 
 function buildTypeCatalog(type) {
@@ -169,6 +176,15 @@ function isDeliveryRequest(text) {
   return normalizeText(text).includes('доставка');
 }
 
+function isPaymentMethodRequest(text) {
+  const t = normalizeText(text);
+  return [
+    'налич', 'наличным', 'наличные', 'карт', 'банковск', 'счет', 'счета', 'счёта',
+    'перевести деньги с', 'способ оплаты', 'оплата', 'оплатить', 'сбп', 'qr', 'кьюар',
+    'терминал', 'при получении', 'курьеру', 'paypal', 'крипт', 'безнал'
+  ].some(k => t.includes(k));
+}
+
 function buildProductInfoReply(product, text) {
   const t = normalizeText(text);
   const parts = [];
@@ -207,7 +223,6 @@ function buildProductInfoReply(product, text) {
 
 function buildWhyExpensiveReply(product) {
   const reasons = [];
-
   if (product.desc) reasons.push(product.desc.toLowerCase());
   if (product.range) reasons.push(`по характеристике это ${product.range}`);
   if (product.bestFor) reasons.push(`он рассчитан на ${product.bestFor}`);
@@ -315,6 +330,7 @@ function createEmptyOrder(username, preferredType = null) {
     tgName: username,
     paymentConfirmed: false,
     paymentScreenshot: null,
+    paidAmount: null,
     intentConfirmed: false,
     orderNum: null
   };
@@ -430,7 +446,6 @@ function finalizeOrderData(order) {
   const orderNum = `AP${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${dailyOrders.length + 1}`;
   const deliveryFee = getDeliveryFee((order.products || []).length);
   const grandTotal = getOrderGrandTotal(order);
-
   return { orderNum, deliveryFee, grandTotal };
 }
 
@@ -451,14 +466,14 @@ async function completePaidOrder(chatId, state) {
     total: order.total,
     grandTotal,
     paymentConfirmed: true,
+    paidAmount: order.paidAmount,
     paymentScreenshot: order.paymentScreenshot || null
   });
 
   let ownerMsg = `НОВЫЙ ОПЛАЧЕННЫЙ ЗАКАЗ ${orderNum} Клиент: @${order.tgName} ФИО: ${order.data.name} Телефон: ${order.data.phone} Город: ${order.data.city} Адрес: ${order.data.address}`;
   ownerMsg += ` Товары: ${order.products.map(p => `${p.name} ${p.price}₽`).join(', ')} Товары: ${order.total}₽ Доставка: ${deliveryFee === 0 ? 'бесплатно' : deliveryFee + '₽'} Итого: ${grandTotal}₽`;
-  if (order.paymentScreenshot) {
-    ownerMsg += ` Скриншот: ${order.paymentScreenshot}`;
-  }
+  if (order.paidAmount) ownerMsg += ` Оплачено: ${order.paidAmount}₽`;
+  if (order.paymentScreenshot) ownerMsg += ` Скриншот: ${order.paymentScreenshot}`;
 
   await sendMessage(OWNER_CHAT_ID, ownerMsg);
 
@@ -482,12 +497,18 @@ async function handleContextualOrderMessage(chatId, state, username, text) {
   const asksCatalog = isCatalogRequest(text);
   const asksDelivery = isDeliveryRequest(text);
   const asksWhyExpensive = isWhyExpensiveRequest(text);
+  const asksPaymentMethod = isPaymentMethodRequest(text);
   const infoRequest = isInfoRequest(text);
   const purchaseSignal = hasPurchaseSignal(text);
   const wantsModify = wantsModifyOrder(text);
   const justPriceForProduct = asksPrice && products.length > 0 && !purchaseSignal && !wantsModify;
 
   if (!order) return false;
+
+  if (asksPaymentMethod) {
+    await sendMessage(chatId, buildPaymentMethodReply());
+    return true;
+  }
 
   if (order.step !== 'payment_amount' && asksDelivery) {
     await sendMessage(chatId, buildDeliveryReply((order.products || []).length));
@@ -649,11 +670,17 @@ async function handleMessage(msg) {
   const asksPrice = isPriceRequest(text);
   const asksDelivery = isDeliveryRequest(text);
   const asksWhyExpensive = isWhyExpensiveRequest(text);
+  const asksPaymentMethod = isPaymentMethodRequest(text);
   const infoRequest = isInfoRequest(text);
 
   if (state.order) {
     const handledByContext = await handleContextualOrderMessage(chatId, state, username, text);
     if (handledByContext) return;
+  }
+
+  if (asksPaymentMethod) {
+    await sendMessage(chatId, buildPaymentMethodReply());
+    return;
   }
 
   if (!state.order && asksDelivery) {
@@ -751,7 +778,9 @@ async function handleMessage(msg) {
     }
 
     if (order.step === 'product_selection') {
-      if (asksDelivery) {
+      if (asksPaymentMethod) {
+        await sendMessage(chatId, buildPaymentMethodReply());
+      } else if (asksDelivery) {
         await sendMessage(chatId, buildDeliveryReply((order.products || []).length));
       } else if (asksPrice) {
         await sendMessage(chatId, buildPriceReply(order.preferredType, productsInMessage));
@@ -829,8 +858,8 @@ async function handleMessage(msg) {
 
         let reply = `Отлично. К оплате ${grandTotal}₽.\n\n`;
         reply += 'Для оплаты переведите сумму на:\n';
-        reply += '💳 +79213393904 (Чао)\n';
-        reply += '🏦 Банк Санкт-Петербург\n\n';
+        reply += `💳 ${PAYMENT_PHONE} (${PAYMENT_NAME})\n`;
+        reply += `🏦 ${PAYMENT_BANK}\n\n`;
         reply += 'После перевода пришлите сюда скриншот, а затем я попрошу указать сумму перевода цифрами.';
         await sendMessage(chatId, reply);
         return;

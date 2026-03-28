@@ -47,7 +47,6 @@ const SYSTEM_PROMPT = `Ты — консультант магазина ЩИТ. 
 
 ЗАПРЕЩЕНО:
 - Длинные объяснения
-- Повторять вопрос клиента
 - Писать больше 4 предложений
 
 Сложные вопросы — передай @drvapeservice`;
@@ -161,6 +160,11 @@ function isInfoRequest(text) {
   ].some(k => t.includes(k));
 }
 
+function isWhyExpensiveRequest(text) {
+  const t = normalizeText(text);
+  return ['почему', 'дорог', 'стоит дороже', 'такая дорог', 'такой дорог'].some(k => t.includes(k));
+}
+
 function isDeliveryRequest(text) {
   return normalizeText(text).includes('доставка');
 }
@@ -193,11 +197,24 @@ function buildProductInfoReply(product, text) {
   if (parts.length === 0) {
     if (product.desc) parts.push(product.desc + '.');
     if (product.bestFor) parts.push(`Главный плюс — ${product.bestFor}.`);
+    if (product.feature) parts.push(`Особенность — ${product.feature}.`);
     if (product.size) parts.push(`Размер ${product.size}.`);
     if (product.weight && product.weight !== '—') parts.push(`Вес ${product.weight}.`);
   }
 
   return `${product.name}: ${parts.join(' ')} Если хотите, могу сразу посчитать итог с доставкой или помочь оформить заказ.`;
+}
+
+function buildWhyExpensiveReply(product) {
+  const reasons = [];
+
+  if (product.desc) reasons.push(product.desc.toLowerCase());
+  if (product.range) reasons.push(`по характеристике это ${product.range}`);
+  if (product.bestFor) reasons.push(`он рассчитан на ${product.bestFor}`);
+  if (product.feature) reasons.push(`его особенность — ${product.feature}`);
+
+  const core = reasons.slice(0, 2).join(', ');
+  return `${product.name} дороже потому, что это более серьёзная модель: ${core}. Проще говоря, здесь платите не только за объём, а за более удобный или более эффективный формат.`;
 }
 
 function detectPreferredType(text) {
@@ -275,11 +292,16 @@ function extractProducts(text) {
   return found.filter((item, index, arr) => arr.findIndex(x => x.code === item.code) === index);
 }
 
-function validateAddress(address) {
+function validateAddress(address, requireCity = false) {
   const hasCity = /москва|спб|санкт-петербург|казань|новосибирск|екатеринбург|нижний|челябинск|самара|омск|ростов|уфа|красноярск|воронеж|пермь|волгоград/i.test(address);
-  const hasStreet = /улица|ул\.|проспект|пр-т|бульвар|переулок|просп/i.test(address);
+  const hasStreet = /улица|ул\.|проспект|пр-т|бульвар|переулок|просп|шоссе|наб\.|набережная/i.test(address);
   const hasNumber = /\d+/.test(address);
-  return { hasCity, hasStreet, hasNumber, isValid: hasCity && hasStreet && hasNumber };
+  return {
+    hasCity,
+    hasStreet,
+    hasNumber,
+    isValid: (requireCity ? hasCity : true) && hasStreet && hasNumber
+  };
 }
 
 function createEmptyOrder(username, preferredType = null) {
@@ -292,7 +314,9 @@ function createEmptyOrder(username, preferredType = null) {
     preferredType,
     tgName: username,
     paymentConfirmed: false,
-    intentConfirmed: false
+    paymentScreenshot: null,
+    intentConfirmed: false,
+    orderNum: null
   };
 }
 
@@ -356,7 +380,7 @@ function getNextOrderPrompt(order) {
         '— улица\n' +
         '— дом, квартира\n' +
         '— подъезд, этаж (если нужно)\n\n' +
-        'Пример: ул. Ленина, дом 10, квартира 5'
+        'Пример: ул. Тверская, д. 15, кв. 78'
     };
   }
   if (!order.data.phone) {
@@ -371,19 +395,11 @@ function getNextOrderPrompt(order) {
   };
 }
 
-async function startOrderFromProducts(chatId, state, username, products, mode = 'replace') {
-  if (!state.order) {
-    state.order = createEmptyOrder(username, products[0]?.type || null);
-  }
+function buildOrderSummary(order) {
+  const deliveryFee = getDeliveryFee((order.products || []).length);
+  const grandTotal = getOrderGrandTotal(order);
 
-  setOrderProducts(state.order, products, mode);
-  const next = getNextOrderPrompt(state.order);
-  state.order.step = next.step;
-
-  const deliveryFee = getDeliveryFee(state.order.products.length);
-  const grandTotal = getOrderGrandTotal(state.order);
-
-  let msg = `Отлично! Ваш выбор:\n${formatProducts(state.order.products)}\n\nТовары: ${state.order.total}₽\n`;
+  let msg = `Отлично! Ваш выбор:\n${formatProducts(order.products)}\n\nТовары: ${order.total}₽\n`;
   msg += deliveryFee === 0 ? 'Доставка: бесплатно\n' : `Доставка: ${deliveryFee}₽\n`;
   msg += `Итого: ${grandTotal}₽`;
 
@@ -393,8 +409,69 @@ async function startOrderFromProducts(chatId, state, username, products, mode = 
     msg += '\n\n✅ У вас от 2 шт — доставка бесплатная!';
   }
 
+  return msg;
+}
+
+async function startOrderFromProducts(chatId, state, username, products, mode = 'replace') {
+  if (!state.order) {
+    state.order = createEmptyOrder(username, products[0]?.type || null);
+  }
+
+  setOrderProducts(state.order, products, mode);
+  const next = getNextOrderPrompt(state.order);
+  state.order.step = next.step;
+
+  let msg = buildOrderSummary(state.order);
   msg += `\n\n${next.prompt}`;
   await sendMessage(chatId, msg);
+}
+
+function finalizeOrderData(order) {
+  const orderNum = `AP${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${dailyOrders.length + 1}`;
+  const deliveryFee = getDeliveryFee((order.products || []).length);
+  const grandTotal = getOrderGrandTotal(order);
+
+  return { orderNum, deliveryFee, grandTotal };
+}
+
+async function completePaidOrder(chatId, state) {
+  const order = state.order;
+  const { orderNum, deliveryFee, grandTotal } = finalizeOrderData(order);
+  order.orderNum = orderNum;
+
+  dailyOrders.push({
+    orderNum,
+    date: new Date(),
+    tgName: order.tgName,
+    name: order.data.name,
+    phone: order.data.phone,
+    city: order.data.city,
+    address: order.data.address,
+    products: order.products || [],
+    total: order.total,
+    grandTotal,
+    paymentConfirmed: true,
+    paymentScreenshot: order.paymentScreenshot || null
+  });
+
+  let ownerMsg = `НОВЫЙ ОПЛАЧЕННЫЙ ЗАКАЗ ${orderNum} Клиент: @${order.tgName} ФИО: ${order.data.name} Телефон: ${order.data.phone} Город: ${order.data.city} Адрес: ${order.data.address}`;
+  ownerMsg += ` Товары: ${order.products.map(p => `${p.name} ${p.price}₽`).join(', ')} Товары: ${order.total}₽ Доставка: ${deliveryFee === 0 ? 'бесплатно' : deliveryFee + '₽'} Итого: ${grandTotal}₽`;
+  if (order.paymentScreenshot) {
+    ownerMsg += ` Скриншот: ${order.paymentScreenshot}`;
+  }
+
+  await sendMessage(OWNER_CHAT_ID, ownerMsg);
+
+  let reply = `✅ Оплата подтверждена. Заказ ${orderNum} оформлен!\n\n`;
+  reply += '⏰ Заказ отправим в течение 1-2 дней.\n\n';
+
+  if (order.hasSpray) {
+    reply += '⚠️ ВАЖНО: Если будете тестировать перцовый баллончик — делайте это только на открытом воздухе, подальше от людей и животных.\n\n';
+  }
+
+  reply += 'Спасибо за заказ! Если есть вопросы — @drvapeservice всегда на связи.';
+  await sendMessage(chatId, reply);
+  state.order = null;
 }
 
 async function handleContextualOrderMessage(chatId, state, username, text) {
@@ -404,6 +481,7 @@ async function handleContextualOrderMessage(chatId, state, username, text) {
   const asksPrice = isPriceRequest(text);
   const asksCatalog = isCatalogRequest(text);
   const asksDelivery = isDeliveryRequest(text);
+  const asksWhyExpensive = isWhyExpensiveRequest(text);
   const infoRequest = isInfoRequest(text);
   const purchaseSignal = hasPurchaseSignal(text);
   const wantsModify = wantsModifyOrder(text);
@@ -413,6 +491,11 @@ async function handleContextualOrderMessage(chatId, state, username, text) {
 
   if (order.step !== 'payment_amount' && asksDelivery) {
     await sendMessage(chatId, buildDeliveryReply((order.products || []).length));
+    return true;
+  }
+
+  if (order.step !== 'payment_amount' && asksWhyExpensive && products.length === 1) {
+    await sendMessage(chatId, buildWhyExpensiveReply(products[0]));
     return true;
   }
 
@@ -565,6 +648,7 @@ async function handleMessage(msg) {
   const purchaseSignal = hasPurchaseSignal(text);
   const asksPrice = isPriceRequest(text);
   const asksDelivery = isDeliveryRequest(text);
+  const asksWhyExpensive = isWhyExpensiveRequest(text);
   const infoRequest = isInfoRequest(text);
 
   if (state.order) {
@@ -574,6 +658,11 @@ async function handleMessage(msg) {
 
   if (!state.order && asksDelivery) {
     await sendMessage(chatId, buildDeliveryReply(productsInMessage.length));
+    return;
+  }
+
+  if (!state.order && asksWhyExpensive && productsInMessage.length === 1) {
+    await sendMessage(chatId, buildWhyExpensiveReply(productsInMessage[0]));
     return;
   }
 
@@ -602,6 +691,8 @@ async function handleMessage(msg) {
   if (!state.order && productsInMessage.length > 0 && !purchaseSignal) {
     if (infoRequest) {
       await sendMessage(chatId, buildProductInfoReply(productsInMessage[0], text));
+    } else if (asksWhyExpensive) {
+      await sendMessage(chatId, buildWhyExpensiveReply(productsInMessage[0]));
     } else {
       await sendMessage(chatId, buildPriceReply(preferredTypeFromText, productsInMessage));
     }
@@ -634,16 +725,27 @@ async function handleMessage(msg) {
       }
     }
 
+    if (order.step === 'awaiting_payment_screenshot') {
+      await sendMessage(chatId, 'После оплаты просто пришлите сюда скриншот перевода.');
+      return;
+    }
+
     if (order.step === 'payment_amount') {
       const amount = parseInt(text.replace(/\D/g, ''), 10);
       if (amount > 0) {
-        order.total = amount;
-        order.step = 'name';
         order.paymentConfirmed = true;
-        await sendMessage(chatId, `✅ Оплата ${amount}₽ подтверждена!\n\nКак зовут получателя? (ФИО полностью)`);
-        await sendMessage(OWNER_CHAT_ID, `Платёж от @${username} Сумма: ${amount}₽ Статус: ожидает данные для доставки`);
+        order.paidAmount = amount;
+
+        if (order.data.name && order.data.city && order.data.address && order.data.phone && order.products.length > 0) {
+          await completePaidOrder(chatId, state);
+          return;
+        }
+
+        const next = getNextOrderPrompt(order);
+        order.step = next.step;
+        await sendMessage(chatId, `✅ Оплата ${amount}₽ подтверждена!\n\n${next.prompt}`);
       } else {
-        await sendMessage(chatId, 'Пожалуйста, введите сумму цифрами, например: 2139');
+        await sendMessage(chatId, 'Пожалуйста, введите сумму цифрами, например: 1349');
       }
       return;
     }
@@ -674,23 +776,19 @@ async function handleMessage(msg) {
         '— улица\n' +
         '— дом, квартира\n' +
         '— подъезд, этаж (если нужно)\n\n' +
-        'Пример: ул. Ленина, дом 10, квартира 5'
+        'Пример: ул. Тверская, д. 15, кв. 78'
       );
       return;
     }
 
     if (order.step === 'address') {
-      const v = validateAddress(text);
-      if (!v.hasCity) {
-        await sendMessage(chatId, 'Укажите, пожалуйста, город в адресе. Например: Москва, ул. Ленина, дом 10');
-        return;
-      }
+      const v = validateAddress(text, false);
       if (!v.hasStreet) {
-        await sendMessage(chatId, 'Добавьте название улицы. Пример: ул. Ленина, дом 10, кв. 5');
+        await sendMessage(chatId, 'Добавьте название улицы. Пример: ул. Тверская, д. 15, кв. 78');
         return;
       }
       if (!v.hasNumber) {
-        await sendMessage(chatId, 'Укажите номер дома и квартиры');
+        await sendMessage(chatId, 'Укажите номер дома и квартиры. Пример: ул. Тверская, д. 15, кв. 78');
         return;
       }
       order.data.address = text;
@@ -716,16 +814,9 @@ async function handleMessage(msg) {
         `📍 ${order.data.address}\n` +
         `📞 ${order.data.phone}\n\n`;
 
-      if (order.products && order.products.length > 0) {
-        confirmMsg += 'Товары:\n' +
-          formatProducts(order.products) +
-          `\n\nТовары: ${order.total}₽\n` +
-          (deliveryFee === 0 ? 'Доставка: бесплатно\n' : `Доставка: ${deliveryFee}₽\n`) +
-          `Итого к оплате: ${grandTotal}₽\n\n`;
-      } else if (order.paymentConfirmed) {
-        confirmMsg += `💰 Оплачено: ${order.total}₽\n\n`;
-      }
-
+      confirmMsg += 'Товары:\n' + formatProducts(order.products) + `\n\nТовары: ${order.total}₽\n`;
+      confirmMsg += deliveryFee === 0 ? 'Доставка: бесплатно\n' : `Доставка: ${deliveryFee}₽\n`;
+      confirmMsg += `Итого к оплате: ${grandTotal}₽\n\n`;
       confirmMsg += 'Если всё верно, напишите «ДА». Если нужно что-то поменять, просто напишите, что именно.';
       await sendMessage(chatId, confirmMsg);
       return;
@@ -733,53 +824,15 @@ async function handleMessage(msg) {
 
     if (order.step === 'confirm') {
       if (isYes(text)) {
-        const orderNum = `AP${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${dailyOrders.length + 1}`;
-        const deliveryFee = getDeliveryFee((order.products || []).length);
         const grandTotal = getOrderGrandTotal(order);
+        order.step = 'awaiting_payment_screenshot';
 
-        dailyOrders.push({
-          orderNum,
-          date: new Date(),
-          tgName: order.tgName,
-          name: order.data.name,
-          phone: order.data.phone,
-          city: order.data.city,
-          address: order.data.address,
-          products: order.products || [],
-          total: order.total,
-          grandTotal,
-          paymentConfirmed: order.paymentConfirmed || false
-        });
-
-        let ownerMsg = `НОВЫЙ ЗАКАЗ ${orderNum} Клиент: @${order.tgName} ФИО: ${order.data.name} Телефон: ${order.data.phone} Город: ${order.data.city} Адрес: ${order.data.address}`;
-
-        if (order.products && order.products.length > 0) {
-          ownerMsg += ` Товары: ${order.products.map(p => `${p.name} ${p.price}₽`).join(', ')} Товары: ${order.total}₽ Доставка: ${deliveryFee === 0 ? 'бесплатно' : deliveryFee + '₽'} Итого: ${grandTotal}₽`;
-        } else {
-          ownerMsg += ` Оплачено: ${order.total}₽ (уточнить товары)`;
-        }
-
-        await sendMessage(OWNER_CHAT_ID, ownerMsg);
-
-        let reply = `✅ Заказ ${orderNum} оформлен!\n\n`;
-
-        if (!order.paymentConfirmed) {
-          reply += `К оплате: ${grandTotal}₽\n\n`;
-          reply += 'Для оплаты переведите сумму на:\n';
-          reply += '💳 +79213393904 (Чао)\n';
-          reply += '🏦 Банк Санкт-Петербург\n\n';
-          reply += 'После перевода пришлите скриншот сюда.\n';
-        }
-
-        reply += '⏰ Заказ отправим в течение 1-2 дней.\n\n';
-
-        if (order.hasSpray) {
-          reply += '⚠️ ВАЖНО: Если будете тестировать перцовый баллончик — делайте это только на открытом воздухе, подальше от людей и животных.\n\n';
-        }
-
-        reply += 'Спасибо за заказ! Если есть вопросы — @drvapeservice всегда на связи.';
+        let reply = `Отлично. К оплате ${grandTotal}₽.\n\n`;
+        reply += 'Для оплаты переведите сумму на:\n';
+        reply += '💳 +79213393904 (Чао)\n';
+        reply += '🏦 Банк Санкт-Петербург\n\n';
+        reply += 'После перевода пришлите сюда скриншот, а затем я попрошу указать сумму перевода цифрами.';
         await sendMessage(chatId, reply);
-        state.order = null;
         return;
       }
 
@@ -835,7 +888,7 @@ async function sendDailySummary() {
   let summary = `ЗАКАЗЫ ЗА ВЧЕРА (${yesterday9am.toLocaleDateString('ru-RU')} 9:00 — ${today9am.toLocaleDateString('ru-RU')} 9:00) Всего заказов: ${yesterdayOrders.length} `;
 
   yesterdayOrders.forEach((o, i) => {
-    summary += `ЗАКАЗ ${i + 1}: ${o.orderNum} Клиент: @${o.tgName} ФИО: ${o.name} Тел: ${o.phone} Город: ${o.city} Адрес: ${o.address} Товары: ${o.products.map(p => p.name).join(', ')} Итого: ${o.grandTotal || o.total}₽ `;
+    summary += `ЗАКАЗ ${i + 1}: ${o.orderNum} Клиент: @${o.tgName} ФИО: ${o.name} Тел: ${o.phone} Город: ${o.city} Адрес: ${o.address} Товары: ${o.products.map(p => p.name).join(', ')} Сумма: ${o.grandTotal || o.total}₽ `;
   });
 
   await sendMessage(OWNER_CHAT_ID, summary);
@@ -862,22 +915,17 @@ async function handlePhoto(msg) {
     }
     const state = conversations.get(chatId);
 
-    state.order = {
-      products: [],
-      total: 0,
-      step: 'payment_amount',
-      data: {},
-      hasSpray: false,
-      tgName: username,
-      paymentScreenshot: fileUrl,
-      paymentConfirmed: false,
-      preferredType: null,
-      intentConfirmed: true
-    };
+    if (!state.order) {
+      state.order = createEmptyOrder(username, null);
+    }
+
+    state.order.tgName = username;
+    state.order.paymentScreenshot = fileUrl;
+    state.order.step = 'payment_amount';
 
     await sendMessage(chatId,
       '✅ Скриншот получен!\n\n' +
-      'Напишите сумму перевода цифрами, например: 2139.'
+      'Напишите сумму перевода цифрами, например: 1349.'
     );
 
     await sendMessage(OWNER_CHAT_ID,

@@ -185,6 +185,30 @@ function isPaymentMethodRequest(text) {
   ].some(k => t.includes(k));
 }
 
+function isGreeting(text) {
+  const t = normalizeText(text).replace(/[^a-zа-яё\s]/gi, '').trim();
+  return [
+    'hi', 'hello', 'hey',
+    'привет', 'здравствуйте', 'здравствуй',
+    'добрый день', 'добрый вечер', 'доброе утро',
+    'салют', 'ку'
+  ].includes(t);
+}
+
+function isMinimalPrompt(text) {
+  return /^[?!.]{1,4}$/.test((text || '').trim());
+}
+
+function isEmojiOnly(text) {
+  const t = (text || '').trim();
+  if (!t) return false;
+  return !/[A-Za-zА-Яа-яЁё0-9]/.test(t) && !/[?!.]/.test(t);
+}
+
+function buildGreetingReply() {
+  return 'Здравствуйте! Подскажу по товарам. Вам нужен перцовый баллончик или электрошокер?';
+}
+
 function buildProductInfoReply(product, text) {
   const t = normalizeText(text);
   const parts = [];
@@ -567,6 +591,15 @@ async function handleMessage(msg) {
     conversations.set(chatId, { messages: [{ role: 'system', content: SYSTEM_PROMPT }], order: null });
   }
   const state = conversations.get(chatId);
+
+  if (!state.order && isEmojiOnly(text)) {
+    return;
+  }
+
+  if (!state.order && (isGreeting(text) || isMinimalPrompt(text))) {
+    await sendMessage(chatId, buildGreetingReply());
+    return;
+  }
 
   if (text === '/start') {
     conversations.set(chatId, { messages: [{ role: 'system', content: SYSTEM_PROMPT }], order: null });

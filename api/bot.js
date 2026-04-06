@@ -11,15 +11,15 @@ const OWNER_CONTACT = '@drvapeservice';
 const SITE_URL = 'https://shield-store-ru.shieldhub.workers.dev/';
 
 const PRODUCTS = {
-  'HJ-5': { name: 'HJ-5 (5ml)', price: 569, desc: 'Форм-фактор помады, сверхкомпактный, для ближней дистанции', bestFor: 'скрытое ношение, неожиданное применение, женская сумочка', size: '82×Ø18 мм', weight: '20 г', range: 'только ближняя дистанция', type: 'spray' },
-  'HJ-10': { name: 'HJ-10 (10ml)', price: 579, desc: 'Узкий формат помады, более ёмкий, компактный и незаметный', bestFor: 'ежедневное скрытое ношение, для девушек, сумочка', size: '100×Ø18 мм', weight: '23.7 г', range: 'только ближняя дистанция', type: 'spray' },
-  'HJ-15': { name: 'HJ-15 (15ml)', price: 589, desc: 'Тонкий спрей 15 мл, баланс компактности и объёма', bestFor: 'город, карман/сумка, скрытое ношение', size: '20×20×115 мм', weight: '33 г', range: 'только ближняя дистанция', type: 'spray' },
-  'HJ-15W': { name: 'HJ-15W (15ml)', price: 599, desc: 'Версия с прозрачным окном, видно остаток жидкости', bestFor: 'тем, кто хочет контролировать остаток и расход', size: '118×Ø19.5 мм', weight: '33 г', range: 'только ближняя дистанция', type: 'spray' },
-  'HJ-20': { name: 'HJ-20 (20ml)', price: 649, desc: 'Стандартная базовая модель, практичная и простая', bestFor: 'первый баллончик, повседневная защита в городе', size: '90×Ø20 мм', weight: '28 г', range: 'эффективно 1–2 м', type: 'spray' },
-  'HJ-20K': { name: 'HJ-20K (20ml)', price: 699, desc: 'Модель с кольцом для ключей, максимально удобна для ношения', bestFor: 'ключи, сумка, быстрое извлечение, ежедневное ношение', size: '95×Ø20 мм', weight: '35 г', range: 'эффективно 1–2 м', type: 'spray' },
-  'HJ-60': { name: 'HJ-60 (60ml)', price: 829, desc: 'Классический увеличенный объём, крышка с предохранителем', bestFor: 'тем, кому нужен больший запас и более уверенный формат', size: '115×Ø35 мм', weight: '75 г', range: 'эффективно до 1.5 м', type: 'spray' },
-  'HJ-110': { name: 'HJ-110 (110ml)', price: 899, desc: 'Увеличенная версия HJ-60, хватает надолго', bestFor: 'долгое использование, максимальный запас объёма', size: '150×Ø35 мм', weight: '105 г', range: 'эффективно 1–2 м', type: 'spray' },
-  'HJ-110S': { name: 'HJ-110S (110ml)', price: 999, desc: 'Струйная модель, мощная и более устойчива к встречному ветру', bestFor: 'требовательные задачи, максимальная эффективность среди переносных моделей', size: '150×Ø35 мм', weight: '105 г', range: 'струйный формат, 1–2 м', type: 'spray' },
+  'HJ-5': { name: 'HJ-5 (5ml)', price: 569, desc: 'Формат помады, самый маленький вариант, работает только почти вплотную', bestFor: 'скрытое ношение, внезапная подача в упор, женская сумочка', size: '82×Ø18 мм', weight: '20 г', range: 'только очень близкая дистанция', type: 'spray' },
+  'HJ-10': { name: 'HJ-10 (10ml)', price: 579, desc: 'Очень компактный формат, размером примерно с маленький флакон, тоже для сверхближней подачи', bestFor: 'для девушек, скрытое ношение, сумочка', size: '100×Ø18 мм', weight: '23.7 г', range: 'только очень близкая дистанция', type: 'spray' },
+  'HJ-15': { name: 'HJ-15 (15ml)', price: 589, desc: 'Компактный 15 мл, но всё ещё не базовый городской вариант, а ближняя дистанция', bestFor: 'скрытое ношение, если нужен чуть больший запас, чем у HJ-5/10', size: '20×20×115 мм', weight: '33 г', range: 'только очень близкая дистанция', type: 'spray' },
+  'HJ-15W': { name: 'HJ-15W (15ml)', price: 599, desc: 'Та же компактная категория, что HJ-15, но с окном контроля остатка', bestFor: 'тем, кто хочет видеть остаток жидкости и носить компактный формат', size: '118×Ø19.5 мм', weight: '33 г', range: 'только очень близкая дистанция', type: 'spray' },
+  'HJ-20': { name: 'HJ-20 (20ml)', price: 649, desc: 'Первый рабочий компактный формат, базовый входной уровень для города', bestFor: 'первый баллончик, ежедневное ношение, базовая самооборона в городе', size: '90×Ø20 мм', weight: '28 г', range: 'примерно до 1.5 м', type: 'spray' },
+  'HJ-20K': { name: 'HJ-20K (20ml)', price: 699, desc: 'Та же рабочая компактная категория, что HJ-20, но с кольцом под ключи', bestFor: 'ключи, сумка, быстрое извлечение, ежедневное ношение', size: '95×Ø20 мм', weight: '35 г', range: 'примерно до 1.5 м', type: 'spray' },
+  'HJ-60': { name: 'HJ-60 (60ml)', price: 829, desc: 'Средний формат с большим запасом и более уверенной работой, чем у HJ-20', bestFor: 'тем, кто хочет более серьёзный вариант без перехода в совсем большой размер', size: '115×Ø35 мм', weight: '75 г', range: 'почти до 2 м', type: 'spray' },
+  'HJ-110': { name: 'HJ-110 (110ml)', price: 899, desc: 'Большой формат с длинной работой и большим объёмом', bestFor: 'максимальный запас, длительное использование, более мощный формат', size: '150×Ø35 мм', weight: '105 г', range: 'примерно 1.5–2 м', type: 'spray' },
+  'HJ-110S': { name: 'HJ-110S (110ml)', price: 999, desc: 'Струйная модель полицейского уровня, бьёт водяной струёй и лучше держится при встречном ветре', bestFor: 'максимальная эффективность, меньше риск задеть себя, требовательные задачи', size: '150×Ø35 мм', weight: '105 г', range: 'струйный формат, примерно 1.5–2 м', type: 'spray' },
   'Model-806': { name: 'Model-806', price: 1590, desc: 'Пальцевый электрошокер: маленький, скрытый, но с хорошей мощностью', bestFor: 'максимальная компактность, ближняя самооборона', size: '75×57×23 мм', weight: '185 г', feature: 'пальцевый формат', type: 'stun' },
   'Model-1202': { name: 'Model-1202', price: 1590, desc: 'Форм-фактор помады, неожиданное применение, есть фонарик', bestFor: 'для девушек, скрытое ношение, сумочка', size: '130×Ø25 мм', weight: '—', feature: 'маскировка под помаду + фонарик', type: 'stun' },
   'Model-669': { name: 'Model-669', price: 1690, desc: 'Стандартная универсальная модель с фонариком', bestFor: 'базовый выбор на каждый день', size: '138×50 мм, голова 20 мм', weight: '—', feature: 'классический формат + фонарик', type: 'stun' },
@@ -64,6 +64,8 @@ const SYSTEM_PROMPT = `Ты — консультант магазина ЩИТ. 
 ПРАВИЛА: максимум 3-4 предложения, без списков и нумерации, сразу к делу, теплый тон.
 ТОВАРЫ: баллончики HJ-5 569₽, HJ-10 579₽, HJ-15 589₽, HJ-15W 599₽, HJ-20 649₽, HJ-20K 699₽, HJ-60 829₽, HJ-110 899₽, HJ-110S 999₽. Шокеры: Model-800 1490₽, Model-806/1202/398 1590₽, Model-669/309 1690₽, Model-1108 1999₽, Model-1158/1320 2099₽, Model-1138 2499₽.
 ДОСТАВКА: 350₽, бесплатно от 2 шт. ОПЛАТА: только перевод по номеру телефона ${PAYMENT_PHONE} (${PAYMENT_NAME}, ${PAYMENT_BANK}).
+ВАЖНО ПО БАЛЛОНЧИКАМ: HJ-5, HJ-10, HJ-15, HJ-15W — это сверхкомпактные варианты только для очень близкой дистанции, их нельзя советовать как основной городской вариант по умолчанию. Базовый рабочий уровень для города начинается с HJ-20 и HJ-20K. HJ-60 — средний формат, HJ-110 — большой формат, HJ-110S — струйный и более устойчивый к встречному ветру.
+ЕСЛИ КЛИЕНТ ГОВОРИТ, ЧТО ДОРОГО: не спорь о цене, а предложи написать ${OWNER_CONTACT} для возможной скидки или подбора варианта дешевле.
 Сложные вопросы — передай ${OWNER_CONTACT}.`;
 
 function normalizeText(text = '') {
@@ -120,7 +122,7 @@ function buildTypeCatalog(type) {
 }
 
 function buildSelectionHelp(type) {
-  if (type === 'spray') return 'По баллончикам есть 4 понятных варианта: маленькие HJ-5 / HJ-10 для скрытого ношения, средние HJ-15 / HJ-20 / HJ-20K как универсальный городской вариант, большие HJ-60 / HJ-110 для большего запаса и струйный HJ-110S для более требовательных задач. Напишите, что вам ближе: маленький, средний, большой или струйный, и я сразу подскажу модель и посчитаю итог.';
+  if (type === 'spray') return 'По баллончикам логика такая: HJ-5 / HJ-10 / HJ-15 / HJ-15W — это сверхкомпактные варианты только для очень близкой дистанции, а для нормального городского старта лучше смотреть от HJ-20 / HJ-20K. Дальше идут HJ-60 как средний формат, HJ-110 как большой и HJ-110S как струйный вариант против встречного ветра. Напишите, что вам ближе: компактный городской, средний, большой или струйный, и я сразу подскажу модель.';
   if (type === 'stun') return 'По шокерам чаще берут Model-800 или Model-806. Напишите модель, например Model-800, и я сразу посчитаю итог.';
   return 'Напишите модель товара, и я сразу подскажу по нему.';
 }
@@ -149,6 +151,44 @@ function buildVoiceFallbackReply() {
 
 function buildAddressOutsideOrderReply() {
   return 'Адрес и пункт выдачи лучше отправлять уже после выбора товара. Сначала пришлите модель текстом, например HJ-20 или Model-309, и я помогу оформить заказ.';
+}
+
+function buildSprayTierReply(tier) {
+  if (tier === 'ultracompact') {
+    return 'Если нужен совсем маленький баллончик, это HJ-5 / HJ-10 / HJ-15 / HJ-15W. Но это именно сверхкомпактная категория для очень близкой дистанции и неожиданной подачи, а не основной городской вариант по умолчанию.';
+  }
+  if (tier === 'compact') {
+    return 'Для обычного города и ежедневного ношения я бы начинал с HJ-20 или HJ-20K. Это уже рабочий компактный формат: базовый уровень, примерно до 1.5 м, спокойно носится в сумке, а у HJ-20K ещё есть кольцо под ключи.';
+  }
+  if (tier === 'medium') {
+    return 'Если нужен именно средний формат, смотрите HJ-60. Он заметно серьёзнее HJ-20 по запасу и по дистанции, почти до 2 м, но ещё без перехода в совсем большой баллон.';
+  }
+  if (tier === 'large') {
+    return 'Если хотите большой формат, смотрите HJ-110. Это уже крупный баллон с большим запасом и более мощным ощущением в работе, чем компактные модели.';
+  }
+  if (tier === 'jet') {
+    return 'Если нужен струйный вариант, это HJ-110S. Он бьёт не облаком, а более плотной струёй, лучше держится при встречном ветре и меньше риск попасть самому под распыление.';
+  }
+  return null;
+}
+
+function buildComparisonReply(products) {
+  if (products.length !== 2) return null;
+  const sortedCodes = products.map((product) => product.code).sort().join('|');
+
+  if (sortedCodes === 'HJ-20|HJ-20K') {
+    return 'HJ-20 и HJ-20K — это одна рабочая категория: оба на 20 мл и подходят как базовый городской вариант. Главное отличие в том, что HJ-20K идёт с кольцом под ключи, поэтому его удобнее носить вместе с ключами, а HJ-20 чуть проще и дешевле.';
+  }
+
+  if (sortedCodes === 'HJ-110|HJ-110S') {
+    return 'HJ-110 и HJ-110S одинаковы по объёму, но HJ-110S — струйный вариант. Он лучше работает при встречном ветре и меньше риск задеть себя, а обычный HJ-110 — классический крупный распылитель.';
+  }
+
+  const [first, second] = products;
+  let reply = `${first.name} и ${second.name}: ${first.price}₽ против ${second.price}₽. `;
+  reply += `Первый вариант больше про ${first.bestFor}, второй — про ${second.bestFor}. `;
+  reply += 'Если хотите, могу сразу подсказать, какой из них лучше именно под вашу задачу.';
+  return reply;
 }
 
 function buildPriceReply(type, products = []) {
@@ -244,7 +284,7 @@ function isPriceRequest(text) {
 }
 
 function isDiscountRequest(text) {
-  return ['скидк', 'дешевле', 'подешевле', 'бонус', 'акци', 'подарок', 'скинь цену', 'торг', 'можно ли дешевле'].some((key) => normalizeText(text).includes(key));
+  return ['скидк', 'дешевле', 'подешевле', 'бонус', 'акци', 'подарок', 'скинь цену', 'торг', 'можно ли дешевле', 'дорого', 'дорогой', 'дороговато', 'слишком дорого', 'высокая цена'].some((key) => normalizeText(text).includes(key));
 }
 
 function looksLikeAddressOutsideOrder(text) {
@@ -254,12 +294,50 @@ function looksLikeAddressOutsideOrder(text) {
 
 function parsePaymentAmount(text) {
   const raw = (text || '').trim();
-  if (!/^\s*\d[\d\s]{1,10}(?:[.,]\d{1,2})?\s*(₽|р|руб|руб\.|рублей)?\s*$/i.test(raw)) {
+  if (!/^\s*\d[\d\s]{1,10}(?:[.,]\d{1,2})?\s*(₽|р|р\.|руб|руб\.|рублей)?\s*$/i.test(raw)) {
     return null;
   }
   const digits = raw.replace(/[^\d]/g, '');
   if (!digits) return null;
   return parseInt(digits, 10);
+}
+
+function isComparisonRequest(text) {
+  return ['чем отличается', 'чем отличаются', 'в чем разница', 'в чём разница', 'разница между', 'сравни', 'сравните', 'что лучше между'].some((key) => normalizeText(text).includes(key));
+}
+
+function detectSprayTier(text) {
+  const normalized = normalizeText(text);
+
+  if (['струй', 'против ветра', 'встречный ветер', 'антиветер', 'не попасть в себя', 'не попасть себе', 'водяной стру', 'полицейский'].some((key) => normalized.includes(key))) {
+    return 'jet';
+  }
+
+  if (['среднего размера', 'средний', 'среднее', 'что из среднего', 'hj-60'].some((key) => normalized.includes(key))) {
+    return 'medium';
+  }
+
+  if (['большой', 'крупный', 'побольше', 'мощнее', 'надолго', 'дольше', 'максимальный', 'большого размера'].some((key) => normalized.includes(key))) {
+    return 'large';
+  }
+
+  if (['маленький', 'самый маленький', 'совсем маленький', 'ультракомпакт', 'для девушки', 'для женщин', 'скрытого ношения', 'под помаду', 'как духи', 'как помада'].some((key) => normalized.includes(key))) {
+    return 'ultracompact';
+  }
+
+  if (['для города', 'город', 'каждый день', 'ежеднев', 'с собой', 'не слишком большое', 'не очень большое', 'компактный', 'базовый', 'входной', 'универсальный'].some((key) => normalized.includes(key))) {
+    return 'compact';
+  }
+
+  return null;
+}
+
+function isTypeChoiceMessage(text, preferredType) {
+  if (!preferredType) return false;
+  const normalized = normalizeText(text).replace(/[^a-zа-яё\s-]/gi, ' ').replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const words = normalized.split(' ');
+  return words.length <= 4;
 }
 
 function isComplexRequest(text) {
@@ -402,9 +480,15 @@ async function handleContextualOrderMessage(chatId, state, username, text) {
   const asksDelivery = isDeliveryRequest(text);
   const asksWhyExpensive = isWhyExpensiveRequest(text);
   const asksPaymentMethod = isPaymentMethodRequest(text);
+  const asksComparison = isComparisonRequest(text);
+  const asksDiscount = isDiscountRequest(text);
   const infoRequest = isInfoRequest(text);
   const purchaseSignal = hasPurchaseSignal(text);
   const wantsModify = wantsModifyOrder(text);
+  if (asksDiscount) {
+    await sendMessage(chatId, buildDiscountContactReply());
+    return true;
+  }
   if (asksPaymentMethod) {
     await sendMessage(chatId, buildPaymentMethodReply());
     return true;
@@ -419,6 +503,10 @@ async function handleContextualOrderMessage(chatId, state, username, text) {
   }
   if (order.step !== 'payment_amount' && asksWhyExpensive && !products.length) {
     await sendMessage(chatId, buildDiscountContactReply());
+    return true;
+  }
+  if (order.step !== 'payment_amount' && asksComparison && products.length === 2) {
+    await sendMessage(chatId, buildComparisonReply(products));
     return true;
   }
   if (order.step !== 'payment_amount' && infoRequest && products.length === 1) {
@@ -538,6 +626,11 @@ async function handleOrderStep(chatId, state, text) {
       await sendMessage(chatId, 'Пожалуйста, введите сумму цифрами, например: 1349');
       return true;
     }
+    const expectedAmount = getOrderGrandTotal(order);
+    if (amount !== expectedAmount) {
+      await sendMessage(chatId, `Сумма не совпадает. По этому заказу к оплате ${expectedAmount}₽. Проверьте перевод и пришлите точную сумму ещё раз цифрами. Если сумма отличается специально, напишите ${OWNER_CONTACT}.`);
+      return true;
+    }
     order.paymentConfirmed = true;
     order.paidAmount = amount;
     if (order.data.name && order.data.city && order.data.address && order.data.phone && order.products.length) {
@@ -550,6 +643,14 @@ async function handleOrderStep(chatId, state, text) {
     return true;
   }
   if (order.step === 'product_selection') {
+    if (order.preferredType === 'spray') {
+      const sprayTier = detectSprayTier(text);
+      const sprayReply = buildSprayTierReply(sprayTier);
+      if (sprayReply) {
+        await sendMessage(chatId, sprayReply);
+        return true;
+      }
+    }
     await sendMessage(chatId, buildSelectionHelp(order.preferredType));
     return true;
   }
@@ -647,6 +748,7 @@ async function handleMessage(msg) {
   const asksDelivery = isDeliveryRequest(text);
   const asksWhyExpensive = isWhyExpensiveRequest(text);
   const asksPaymentMethod = isPaymentMethodRequest(text);
+  const asksComparison = isComparisonRequest(text);
   const infoRequest = isInfoRequest(text);
   const purchaseSignal = hasPurchaseSignal(text);
 
@@ -671,6 +773,10 @@ async function handleMessage(msg) {
     await sendMessage(chatId, buildDiscountContactReply());
     return;
   }
+  if (!state.order && asksComparison && products.length === 2) {
+    await sendMessage(chatId, buildComparisonReply(products));
+    return;
+  }
   if (!state.order && infoRequest && products.length === 1) {
     await sendMessage(chatId, buildProductInfoReply(products[0], text));
     return;
@@ -684,6 +790,11 @@ async function handleMessage(msg) {
     return;
   }
   if (!state.order && purchaseSignal && preferredType) {
+    state.order = createEmptyOrder(username, preferredType);
+    await sendMessage(chatId, buildSelectionHelp(preferredType));
+    return;
+  }
+  if (!state.order && preferredType && !products.length && isTypeChoiceMessage(text, preferredType)) {
     state.order = createEmptyOrder(username, preferredType);
     await sendMessage(chatId, buildSelectionHelp(preferredType));
     return;

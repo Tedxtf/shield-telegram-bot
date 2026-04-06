@@ -7,6 +7,8 @@ const SHIPPING_FEE = 350;
 const PAYMENT_PHONE = '+7 921 339-39-04';
 const PAYMENT_NAME = 'Чао';
 const PAYMENT_BANK = 'Банк Санкт-Петербург';
+const OWNER_CONTACT = '@drvapeservice';
+const SITE_URL = 'https://shield-store-ru.shieldhub.workers.dev/';
 
 const PRODUCTS = {
   'HJ-5': { name: 'HJ-5 (5ml)', price: 569, desc: 'Форм-фактор помады, сверхкомпактный, для ближней дистанции', bestFor: 'скрытое ношение, неожиданное применение, женская сумочка', size: '82×Ø18 мм', weight: '20 г', range: 'только ближняя дистанция', type: 'spray' },
@@ -35,8 +37,9 @@ const PAYMENT_KEYWORDS = [
   'куда переводить', 'куда перевести', 'куда отправить деньги', 'куда скинуть деньги', 'куда оплатить',
   'на какой номер переводить', 'на какой номер оплатить', 'номер для оплаты', 'номер для перевода',
   'реквизит', 'реквизиты', 'оплата', 'оплатить', 'платить', 'перевести деньги',
-  'перевод по номеру', 'сбп', 'qr', 'кьюар', 'терминал', 'налич', 'наличные', 'карт',
-  'банковск', 'при получении', 'курьеру', 'безнал', 'paypal', 'крипт'
+  'перевод по номеру', 'сбп', 'qr', 'кьюар', 'терминал', 'налич', 'наличные',
+  'карта', 'картой', 'на карту', 'по карте', 'номер карты', 'банковская карта',
+  'при получении', 'курьеру', 'безнал', 'paypal', 'крипт'
 ];
 
 const dailyOrders = [];
@@ -44,12 +47,13 @@ const conversations = new Map();
 const PHONE_REGEX = /\+?7[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}/;
 const CITY_REGEX = /москва|спб|санкт-петербург|казань|новосибирск|екатеринбург|нижний|челябинск|самара|омск|ростов|уфа|красноярск|воронеж|пермь|волгоград/i;
 const STREET_REGEX = /улица|ул\.|проспект|пр-т|бульвар|переулок|просп|шоссе|наб\.|набережная/i;
+const ADDRESS_LIKE_REGEX = /сдэк|cdek|пвз|постамат|самовывоз|невский|лиговский|проспект|ул\.|улица|дом|квартира|подъезд|этаж/i;
 
 const SYSTEM_PROMPT = `Ты — консультант магазина ЩИТ. Отвечай кратко, по-человечески, без форматирования *.
 ПРАВИЛА: максимум 3-4 предложения, без списков и нумерации, сразу к делу, теплый тон.
 ТОВАРЫ: баллончики HJ-5 569₽, HJ-10 579₽, HJ-15 589₽, HJ-15W 599₽, HJ-20 649₽, HJ-20K 699₽, HJ-60 829₽, HJ-110 899₽, HJ-110S 999₽. Шокеры: Model-800 1490₽, Model-806/1202/398 1590₽, Model-669/309 1690₽, Model-1108 1999₽, Model-1158/1320 2099₽, Model-1138 2499₽.
 ДОСТАВКА: 350₽, бесплатно от 2 шт. ОПЛАТА: только перевод по номеру телефона ${PAYMENT_PHONE} (${PAYMENT_NAME}, ${PAYMENT_BANK}).
-Сложные вопросы — передай @drvapeservice.`;
+Сложные вопросы — передай ${OWNER_CONTACT}.`;
 
 function normalizeText(text = '') {
   return text.toLowerCase().replace(/[–—−]/g, '-').replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
@@ -101,7 +105,7 @@ function buildTypeCatalog(type) {
 }
 
 function buildSelectionHelp(type) {
-  if (type === 'spray') return 'По баллончикам могу быстро подсказать: самый компактный HJ-5, популярный скрытый вариант HJ-10, более уверенный HJ-20. Напишите модель, например HJ-10, и я сразу посчитаю итог.';
+  if (type === 'spray') return 'По баллончикам есть 4 понятных варианта: маленькие HJ-5 / HJ-10 для скрытого ношения, средние HJ-15 / HJ-20 / HJ-20K как универсальный городской вариант, большие HJ-60 / HJ-110 для большего запаса и струйный HJ-110S для более требовательных задач. Напишите, что вам ближе: маленький, средний, большой или струйный, и я сразу подскажу модель и посчитаю итог.';
   if (type === 'stun') return 'По шокерам чаще берут Model-800 или Model-806. Напишите модель, например Model-800, и я сразу посчитаю итог.';
   return 'Напишите модель товара, и я сразу подскажу по нему.';
 }
@@ -114,6 +118,22 @@ function buildDeliveryReply(productCount = 0) {
 
 function buildPaymentMethodReply() {
   return `Оплата только переводом по номеру телефона ${PAYMENT_PHONE} (${PAYMENT_NAME}, ${PAYMENT_BANK}). После перевода пришлите сюда скриншот, а затем сумму перевода цифрами. Наличными, при получении и на другие реквизиты оплату не принимаем.`;
+}
+
+function buildDiscountContactReply() {
+  return `Если цена кажется высокой, напишите ${OWNER_CONTACT}. Он посмотрит вашу ситуацию и скажет, можно ли сделать скидку или подобрать вариант дешевле.`;
+}
+
+function buildUnsupportedPhotoReply() {
+  return `Пока я не умею читать изображения. Откройте сайт ${SITE_URL}, посмотрите точное название модели и просто пришлите его сюда текстом, например HJ-20 или Model-309.`;
+}
+
+function buildVoiceFallbackReply() {
+  return 'Пока я не умею распознавать голосовые сообщения. Напишите текстом, пожалуйста, и я сразу помогу.';
+}
+
+function buildAddressOutsideOrderReply() {
+  return 'Адрес и пункт выдачи лучше отправлять уже после выбора товара. Сначала пришлите модель текстом, например HJ-20 или Model-309, и я помогу оформить заказ.';
 }
 
 function buildPriceReply(type, products = []) {
@@ -212,6 +232,21 @@ function isDiscountRequest(text) {
   return ['скидк', 'дешевле', 'подешевле', 'бонус', 'акци', 'подарок', 'скинь цену', 'торг', 'можно ли дешевле'].some((key) => normalizeText(text).includes(key));
 }
 
+function looksLikeAddressOutsideOrder(text) {
+  const normalized = normalizeText(text);
+  return ADDRESS_LIKE_REGEX.test(normalized) && (/\d/.test(normalized) || normalized.includes('сдэк') || normalized.includes('пвз'));
+}
+
+function parsePaymentAmount(text) {
+  const raw = (text || '').trim();
+  if (!/^\s*\d[\d\s]{1,10}(?:[.,]\d{1,2})?\s*(₽|р|руб|руб\.|рублей)?\s*$/i.test(raw)) {
+    return null;
+  }
+  const digits = raw.replace(/[^\d]/g, '');
+  if (!digits) return null;
+  return parseInt(digits, 10);
+}
+
 function isComplexRequest(text) {
   return ['возврат', 'жалоба', 'претензия', 'спор', 'развод', 'полиция', 'юрист', 'адвокат', 'суд', 'проблема с заказом', 'не пришло', 'сломано', 'брак'].some((key) => normalizeText(text).includes(key));
 }
@@ -238,6 +273,13 @@ function extractProducts(text) {
   const found = new Map();
   const stunContext = /(электрошокер|шокер|модель|model)/i.test(normalized);
   for (const [code, data] of Object.entries(PRODUCTS)) {
+    const codeLower = code.toLowerCase();
+    const compactCode = codeLower.replace('-', '');
+    const negatedExact = new RegExp(`не\\s+${escapeRegex(codeLower).replace('-', '[-\\s]?')}(?=\\D|$)`, 'i');
+    const negatedCompact = new RegExp(`не\\s+${escapeRegex(compactCode)}(?=\\D|$)`, 'i');
+    if (negatedExact.test(normalized) || negatedCompact.test(normalized)) {
+      continue;
+    }
     const exact = new RegExp(`(^|[^a-z0-9])${escapeRegex(code.toLowerCase()).replace('-', '[-\\s]?')}([^a-z0-9]|$)`, 'i');
     if (exact.test(normalized)) {
       found.set(code, { code, ...data });
@@ -249,6 +291,10 @@ function extractProducts(text) {
     }
     if (code.startsWith('Model-')) {
       const number = code.slice(6).toLowerCase();
+      const negatedBareNumber = new RegExp(`не\\s+${escapeRegex(number)}(?=\\D|$)`, 'i');
+      if (negatedBareNumber.test(normalized)) {
+        continue;
+      }
       const withContext = new RegExp(`(?:электрошокер|шокер|модель|model)\\s*[-#:]?\\s*${escapeRegex(number)}(?=\\D|$)`, 'i');
       const bare = new RegExp(`(^|[^0-9])${escapeRegex(number)}([^0-9]|$)`, 'i');
       if (withContext.test(normalized) || (stunContext && bare.test(normalized))) found.set(code, { code, ...data });
@@ -326,7 +372,7 @@ async function completePaidOrder(chatId, state) {
   await sendMessage(OWNER_CHAT_ID, ownerMsg);
   let reply = `✅ Оплата подтверждена. Заказ ${orderNum} оформлен!\n\n⏰ Заказ отправим в течение 1-2 дней.\n\n`;
   if (order.hasSpray) reply += '⚠️ ВАЖНО: Если будете тестировать перцовый баллончик — делайте это только на открытом воздухе, подальше от людей и животных.\n\n';
-  reply += 'Спасибо за заказ! Если есть вопросы — @drvapeservice всегда на связи.';
+  reply += `Спасибо за заказ! Если есть вопросы — ${OWNER_CONTACT} всегда на связи.`;
   await sendMessage(chatId, reply);
   state.order = null;
 }
@@ -354,6 +400,10 @@ async function handleContextualOrderMessage(chatId, state, username, text) {
   }
   if (order.step !== 'payment_amount' && asksWhyExpensive && products.length === 1) {
     await sendMessage(chatId, buildWhyExpensiveReply(products[0]));
+    return true;
+  }
+  if (order.step !== 'payment_amount' && asksWhyExpensive && !products.length) {
+    await sendMessage(chatId, buildDiscountContactReply());
     return true;
   }
   if (order.step !== 'payment_amount' && infoRequest && products.length === 1) {
@@ -391,7 +441,7 @@ async function replyWithAi(chatId, state, text) {
     await sendMessage(chatId, reply);
   } catch (err) {
     console.error('AI error:', err.message);
-    await sendMessage(chatId, 'Технические неполадки. Напишите @drvapeservice — он увидит и ответит в ближайшее время.');
+    await sendMessage(chatId, `Технические неполадки. Напишите ${OWNER_CONTACT} — он увидит и ответит в ближайшее время.`);
   }
 }
 
@@ -468,7 +518,7 @@ async function handleOrderStep(chatId, state, text) {
     return true;
   }
   if (order.step === 'payment_amount') {
-    const amount = parseInt(text.replace(/\D/g, ''), 10);
+    const amount = parsePaymentAmount(text);
     if (!amount) {
       await sendMessage(chatId, 'Пожалуйста, введите сумму цифрами, например: 1349');
       return true;
@@ -557,22 +607,22 @@ async function handleMessage(msg) {
   }
   if (text === '/start') {
     conversations.set(chatId, { messages: [{ role: 'system', content: SYSTEM_PROMPT }], order: null });
-    await sendMessage(chatId, `Здравствуйте! 👋\n\nМеня зовут Антон, я консультант магазина ЩИТ. Помогу подобрать средство самообороны под ваши задачи.\n\nЧем могу быть полезен?\n• 📋 Покажу актуальные цены и наличие\n• 🎯 Подберу под конкретную ситуацию\n• 📝 Помогу оформить заказ\n\n💡 Доставка фиксированная ${SHIPPING_FEE}₽, а от 2 товаров бесплатно\n\nЕсли удобнее поговорить голосом или есть сложные вопросы — пишите моему коллеге @drvapeservice`);
+    await sendMessage(chatId, `Здравствуйте! 👋\n\nМеня зовут Антон, я консультант магазина ЩИТ. Помогу подобрать средство самообороны под ваши задачи.\n\nЧем могу быть полезен?\n• 📋 Покажу актуальные цены и наличие\n• 🎯 Подберу под конкретную ситуацию\n• 📝 Помогу оформить заказ\n\n💡 Доставка фиксированная ${SHIPPING_FEE}₽, а от 2 товаров бесплатно\n\nЕсли удобнее поговорить голосом или есть сложные вопросы — пишите моему коллеге ${OWNER_CONTACT}`);
     return;
   }
   if (await handleOwnerCommands(chatId, text)) return;
   if (isComplexRequest(text)) {
-    await sendMessage(chatId, 'Это контакт владельца @drvapeservice — он увидит сообщение и ответит вам в ближайшее время.');
+    await sendMessage(chatId, `Это контакт владельца ${OWNER_CONTACT} — он увидит сообщение и ответит вам в ближайшее время.`);
     await sendMessage(OWNER_CHAT_ID, `${username}: сложный запрос "${text}" Chat ID: ${chatId}`);
     return;
   }
   if (wantsHuman(text)) {
-    await sendMessage(chatId, 'Это контакт владельца @drvapeservice — он увидит сообщение и ответит вам в ближайшее время.');
+    await sendMessage(chatId, `Это контакт владельца ${OWNER_CONTACT} — он увидит сообщение и ответит вам в ближайшее время.`);
     await sendMessage(OWNER_CHAT_ID, `${username} запросил оператора Chat ID: ${chatId}`);
     return;
   }
   if (isDiscountRequest(text)) {
-    await sendMessage(chatId, 'Цены фиксированные. По вопросам опта пишите @drvapeservice — он увидит и ответит в ближайшее время.');
+    await sendMessage(chatId, buildDiscountContactReply());
     return;
   }
 
@@ -594,8 +644,16 @@ async function handleMessage(msg) {
     await sendMessage(chatId, buildDeliveryReply(products.length));
     return;
   }
+  if (!state.order && looksLikeAddressOutsideOrder(text)) {
+    await sendMessage(chatId, buildAddressOutsideOrderReply());
+    return;
+  }
   if (!state.order && asksWhyExpensive && products.length === 1) {
     await sendMessage(chatId, buildWhyExpensiveReply(products[0]));
+    return;
+  }
+  if (!state.order && asksWhyExpensive && !products.length) {
+    await sendMessage(chatId, buildDiscountContactReply());
     return;
   }
   if (!state.order && infoRequest && products.length === 1) {
@@ -656,11 +714,16 @@ async function handlePhoto(msg) {
   const photo = msg.photo?.[msg.photo.length - 1];
   if (!photo) return;
   console.log(`📸 ${username} отправил фото`);
+
+  const state = getState(chatId);
+  if (!state.order || (state.order.step !== 'awaiting_payment_screenshot' && state.order.step !== 'payment_amount')) {
+    await sendMessage(chatId, buildUnsupportedPhotoReply());
+    return;
+  }
+
   try {
     const fileRes = await axios.get(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${photo.file_id}`);
     const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${fileRes.data.result.file_path}`;
-    const state = getState(chatId);
-    if (!state.order) state.order = createEmptyOrder(username, null);
     state.order.tgName = username;
     state.order.paymentScreenshot = fileUrl;
     state.order.step = 'payment_amount';
@@ -668,8 +731,13 @@ async function handlePhoto(msg) {
     await sendMessage(OWNER_CHAT_ID, `@${username} отправил скриншот оплаты Ссылка: ${fileUrl} Ожидает подтверждения суммы`);
   } catch (err) {
     console.error('Ошибка обработки фото:', err.message);
-    await sendMessage(chatId, 'Получил фото. Напишите сумму перевода цифрами, или свяжитесь с @drvapeservice — он увидит и ответит в ближайшее время.');
+    await sendMessage(chatId, `Получил фото. Напишите сумму перевода цифрами, или свяжитесь с ${OWNER_CONTACT} — он увидит и ответит в ближайшее время.`);
   }
+}
+
+async function handleVoice(msg) {
+  const chatId = msg.chat.id;
+  await sendMessage(chatId, buildVoiceFallbackReply());
 }
 
 module.exports = async (req, res) => {
@@ -677,6 +745,7 @@ module.exports = async (req, res) => {
   if (req.method === 'POST') {
     const { message } = req.body;
     if (message?.photo) await handlePhoto(message);
+    if (message?.voice || message?.audio || message?.video_note) await handleVoice(message);
     if (message?.text) await handleMessage(message);
     return res.status(200).json({ ok: true });
   }

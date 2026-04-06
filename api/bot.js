@@ -153,6 +153,14 @@ function buildAddressOutsideOrderReply() {
   return 'Адрес и пункт выдачи лучше отправлять уже после выбора товара. Сначала пришлите модель текстом, например HJ-20 или Model-309, и я помогу оформить заказ.';
 }
 
+function buildGeneralSelfDefenseReply() {
+  return 'Для города чаще всего смотрят либо рабочий компактный баллончик HJ-20 / HJ-20K, либо шокер Model-800 / Model-806, если нужен электрошокер. Если хотите, могу быстро сузить выбор под вашу задачу. Что вам ближе: баллончик или шокер?';
+}
+
+function buildCarryPreferenceReply() {
+  return 'Если важны ежедневное ношение и не слишком большой размер, то по баллончикам я бы уже смотрел не на HJ-5 / HJ-10, а на HJ-20 или HJ-20K как на нормальный городской старт. Если же нужен шокер, тогда чаще выбирают Model-800 или Model-806. Что вам ближе сейчас: баллончик или шокер?';
+}
+
 function buildSprayTierReply(tier) {
   if (tier === 'ultracompact') {
     return 'Если нужен совсем маленький баллончик, это HJ-5 / HJ-10 / HJ-15 / HJ-15W. Но это именно сверхкомпактная категория для очень близкой дистанции и неожиданной подачи, а не основной городской вариант по умолчанию.';
@@ -330,6 +338,16 @@ function detectSprayTier(text) {
   }
 
   return null;
+}
+
+function isGeneralSelfDefenseQuestion(text) {
+  const normalized = normalizeText(text);
+  return ['самооборона', 'для города', 'что посоветуете', 'что посоветуешь', 'что выбрать', 'что лучше взять'].some((key) => normalized.includes(key));
+}
+
+function isCarryPreferenceQuestion(text) {
+  const normalized = normalizeText(text);
+  return ['удобно носить', 'носить с собой каждый день', 'каждый день', 'не слишком большое', 'не очень большое', 'небольшое', 'компактное', 'чтобы носить с собой'].some((key) => normalized.includes(key));
 }
 
 function isTypeChoiceMessage(text, preferredType) {
@@ -751,6 +769,8 @@ async function handleMessage(msg) {
   const asksComparison = isComparisonRequest(text);
   const infoRequest = isInfoRequest(text);
   const purchaseSignal = hasPurchaseSignal(text);
+  const generalSelectionQuestion = isGeneralSelfDefenseQuestion(text);
+  const carryPreferenceQuestion = isCarryPreferenceQuestion(text);
 
   if (state.order && await handleContextualOrderMessage(chatId, state, username, text)) return;
   if (asksPaymentMethod) {
@@ -783,6 +803,14 @@ async function handleMessage(msg) {
   }
   if (!state.order && asksPrice && (products.length || preferredType)) {
     await sendMessage(chatId, buildPriceReply(preferredType, products));
+    return;
+  }
+  if (!state.order && !preferredType && !products.length && carryPreferenceQuestion) {
+    await sendMessage(chatId, buildCarryPreferenceReply());
+    return;
+  }
+  if (!state.order && !preferredType && !products.length && generalSelectionQuestion) {
+    await sendMessage(chatId, buildGeneralSelfDefenseReply());
     return;
   }
   if (!state.order && purchaseSignal && products.length) {

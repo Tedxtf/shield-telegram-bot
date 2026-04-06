@@ -48,6 +48,17 @@ const PHONE_REGEX = /\+?7[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}/;
 const CITY_REGEX = /москва|спб|санкт-петербург|казань|новосибирск|екатеринбург|нижний|челябинск|самара|омск|ростов|уфа|красноярск|воронеж|пермь|волгоград/i;
 const STREET_REGEX = /улица|ул\.|проспект|пр-т|бульвар|переулок|просп|шоссе|наб\.|набережная/i;
 const ADDRESS_LIKE_REGEX = /сдэк|cdek|пвз|постамат|самовывоз|невский|лиговский|проспект|ул\.|улица|дом|квартира|подъезд|этаж/i;
+const SPRAY_TYPE_KEYWORDS = [
+  'перцовый баллончик', 'перцовый спрей', 'газовый баллончик', 'газовый баллон',
+  'струйный баллончик', 'баллончик', 'баллон', 'перцовка', 'перцовый',
+  'спрей', 'pepper spray', '胡椒喷雾', '辣椒喷雾'
+];
+const STUN_TYPE_KEYWORDS = [
+  'электрошокер', 'электрошок', 'электрошоковый', 'шокер',
+  'шокер-дубинка', 'дубинка-шокер', 'электрошоковая дубинка', 'электродубинка',
+  'шокер-фонарик', 'фонарь-шокер', 'фонарик-шокер', 'stun gun', 'stun',
+  '电棍', '电击棍'
+];
 
 const SYSTEM_PROMPT = `Ты — консультант магазина ЩИТ. Отвечай кратко, по-человечески, без форматирования *.
 ПРАВИЛА: максимум 3-4 предложения, без списков и нумерации, сразу к делу, теплый тон.
@@ -61,6 +72,10 @@ function normalizeText(text = '') {
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function includesAny(text, keywords) {
+  return keywords.some((key) => text.includes(key));
 }
 
 function getState(chatId) {
@@ -211,8 +226,8 @@ function buildGreetingReply() {
 
 function detectPreferredType(text) {
   const t = normalizeText(text);
-  const hasSpray = ['баллончик', 'баллон', 'перц', 'pepper spray', 'спрей'].some((key) => t.includes(key));
-  const hasStun = ['шокер', 'электрошокер', 'электрошок', 'stun'].some((key) => t.includes(key));
+  const hasSpray = includesAny(t, SPRAY_TYPE_KEYWORDS);
+  const hasStun = includesAny(t, STUN_TYPE_KEYWORDS);
   if (hasSpray && !hasStun) return 'spray';
   if (hasStun && !hasSpray) return 'stun';
   return null;
@@ -271,7 +286,7 @@ function isYes(text) {
 function extractProducts(text) {
   const normalized = normalizeText(text);
   const found = new Map();
-  const stunContext = /(электрошокер|шокер|модель|model)/i.test(normalized);
+  const stunContext = includesAny(normalized, [...STUN_TYPE_KEYWORDS, 'модель', 'model']);
   for (const [code, data] of Object.entries(PRODUCTS)) {
     const codeLower = code.toLowerCase();
     const compactCode = codeLower.replace('-', '');

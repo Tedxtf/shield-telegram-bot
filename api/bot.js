@@ -686,12 +686,8 @@ async function handleOrderStep(chatId, state, text) {
   }
   if (order.step === 'address') {
     const check = validateAddress(text, false);
-    if (!check.hasStreet) {
-      await sendMessage(chatId, 'Добавьте название улицы. Пример: ул. Тверская, д. 15, кв. 78');
-      return true;
-    }
     if (!check.hasNumber) {
-      await sendMessage(chatId, 'Укажите номер дома и квартиры. Пример: ул. Тверская, д. 15, кв. 78');
+      await sendMessage(chatId, 'Укажите номер дома. Пример: ул. Тверская, д. 15, кв. 78');
       return true;
     }
     order.data.address = text;
